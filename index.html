@@ -46,7 +46,11 @@
 
 <script>
 let data = JSON.parse(localStorage.getItem("prdata")) || {
-  exercises: ["Squat", "Bench"],
+  exercises: [
+    { name: "Bench press", unit: "kg", type: "weight" },
+    { name: "Dumbbell bench press", unit: "kg", type: "weight" }
+    { name: "Handstand", unit: "sec", type: "time" }
+  ],
   logs: []
 };
 
@@ -54,9 +58,36 @@ function save() {
   localStorage.setItem("prdata", JSON.stringify(data));
 }
 
+// --- UNIT CONVERSION ---
+function toInternal(value, unit, type) {
+  if (type === "weight") {
+    if (unit === "lbs") return value * 0.453592;
+    return value; // kg
+  }
+  if (type === "time") {
+    if (unit === "min") return value * 60;
+    return value; // sec
+  }
+}
+
+function fromInternal(value, unit, type) {
+  if (type === "weight") {
+    if (unit === "lbs") return value / 0.453592;
+    return value;
+  }
+  if (type === "time") {
+    if (unit === "min") return value / 60;
+    return value;
+  }
+}
+
+// --- RENDER ---
 function render() {
   let exSel = document.getElementById("exercise");
-  exSel.innerHTML = data.exercises.map(e => `<option>${e}</option>`).join("");
+
+  exSel.innerHTML = data.exercises
+    .map(e => `<option value="${e.name}">${e.name}</option>`)
+    .join("");
 
   let prs = {};
   data.logs.forEach(l => {
@@ -64,28 +95,41 @@ function render() {
   });
 
   document.getElementById("prs").innerHTML =
-    data.exercises.map(e =>
-      `<div class="pr">${e}: ${prs[e] || "-"}</div>`
-    ).join("");
+    data.exercises.map(e => {
+      let val = prs[e.name];
+      let display = val ? fromInternal(val, e.unit, e.type).toFixed(1) : "-";
+      return `<div class="pr">${e.name}: ${display} ${e.unit}</div>`;
+    }).join("");
 
   let recent = [...data.logs].reverse().slice(0, 10);
+
   document.getElementById("recent").innerHTML =
     recent.map(l => {
+      let ex = data.exercises.find(e => e.name === l.exercise);
+      let display = fromInternal(l.value, ex.unit, ex.type).toFixed(1);
+
       let isPR = l.value === Math.max(...data.logs
         .filter(x => x.exercise === l.exercise)
         .map(x => x.value));
-      return `<div>${l.exercise} ${l.value} ${isPR ? "🔥" : ""}</div>`;
+
+      return `<div>${l.exercise} ${display} ${ex.unit} ${isPR ? "🔥" : ""}</div>`;
     }).join("");
 }
 
+// --- LOG ---
 function log() {
-  let ex = document.getElementById("exercise").value;
+  let exName = document.getElementById("exercise").value;
+  let inputUnit = document.getElementById("inputUnit").value;
   let val = Number(document.getElementById("value").value);
+
   if (!val) return;
 
+  let ex = data.exercises.find(e => e.name === exName);
+  let internal = toInternal(val, inputUnit, ex.type);
+
   data.logs.push({
-    exercise: ex,
-    value: val,
+    exercise: exName,
+    value: internal,
     date: new Date().toISOString()
   });
 
@@ -94,10 +138,17 @@ function log() {
   render();
 }
 
+// --- ADD EXERCISE ---
 function addExercise() {
-  let ex = document.getElementById("newEx").value;
-  if (!ex) return;
-  data.exercises.push(ex);
+  let name = document.getElementById("newEx").value;
+  let unit = document.getElementById("unit").value;
+
+  if (!name) return;
+
+  let type = (unit === "kg" || unit === "lbs") ? "weight" : "time";
+
+  data.exercises.push({ name, unit, type });
+
   document.getElementById("newEx").value = "";
   save();
   render();
