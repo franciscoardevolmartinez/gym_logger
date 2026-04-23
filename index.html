@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PR Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body { font-family: -apple-system, sans-serif; margin: 16px; }
+    h1 { font-size: 22px; }
+    input, select, button {
+      font-size: 18px; padding: 8px; margin: 4px 0;
+    }
+    button { width: 100%; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    .pr { font-weight: bold; }
+    .newpr { color: green; }
+    .section { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>PR Tracker</h1>
+
+  <div class="row">
+    <select id="exercise"></select>
+    <input id="value" type="number" placeholder="Weight" />
+  </div>
+  <button onclick="log()">+ Log</button>
+
+  <div class="section">
+    <h2>PRs</h2>
+    <div id="prs"></div>
+  </div>
+
+  <div class="section">
+    <h2>Recent</h2>
+    <div id="recent"></div>
+  </div>
+
+  <div class="section">
+    <h3>Add Exercise</h3>
+    <input id="newEx" placeholder="New exercise" />
+    <button onclick="addExercise()">Add</button>
+  </div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("prdata")) || {
+  exercises: ["Squat", "Bench"],
+  logs: []
+};
+
+function save() {
+  localStorage.setItem("prdata", JSON.stringify(data));
+}
+
+function render() {
+  let exSel = document.getElementById("exercise");
+  exSel.innerHTML = data.exercises.map(e => `<option>${e}</option>`).join("");
+
+  let prs = {};
+  data.logs.forEach(l => {
+    prs[l.exercise] = Math.max(prs[l.exercise] || 0, l.value);
+  });
+
+  document.getElementById("prs").innerHTML =
+    data.exercises.map(e =>
+      `<div class="pr">${e}: ${prs[e] || "-"}</div>`
+    ).join("");
+
+  let recent = [...data.logs].reverse().slice(0, 10);
+  document.getElementById("recent").innerHTML =
+    recent.map(l => {
+      let isPR = l.value === Math.max(...data.logs
+        .filter(x => x.exercise === l.exercise)
+        .map(x => x.value));
+      return `<div>${l.exercise} ${l.value} ${isPR ? "🔥" : ""}</div>`;
+    }).join("");
+}
+
+function log() {
+  let ex = document.getElementById("exercise").value;
+  let val = Number(document.getElementById("value").value);
+  if (!val) return;
+
+  data.logs.push({
+    exercise: ex,
+    value: val,
+    date: new Date().toISOString()
+  });
+
+  document.getElementById("value").value = "";
+  save();
+  render();
+}
+
+function addExercise() {
+  let ex = document.getElementById("newEx").value;
+  if (!ex) return;
+  data.exercises.push(ex);
+  document.getElementById("newEx").value = "";
+  save();
+  render();
+}
+
+render();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+</body>
+</html>
