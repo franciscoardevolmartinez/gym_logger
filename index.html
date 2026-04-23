@@ -4,161 +4,383 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PR Tracker</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json" />
   <style>
-    body { font-family: -apple-system, sans-serif; margin: 16px; }
-    h1 { font-size: 22px; }
-    input, select, button {
-      font-size: 18px; padding: 8px; margin: 4px 0;
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 16px;
+      background: #f7f7f7;
+      color: #111;
     }
-    button { width: 100%; }
-    .row { display: flex; gap: 8px; }
-    .row > * { flex: 1; }
-    .pr { font-weight: bold; }
-    .newpr { color: green; }
-    .section { margin-top: 20px; }
+
+    h1, h2, h3 {
+      margin-bottom: 8px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .row > * {
+      flex: 1;
+    }
+
+    input, select, button {
+      font-size: 17px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #d0d0d0;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #111;
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+
+    button:active {
+      opacity: 0.9;
+    }
+
+    .pr-item, .log-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .pr-item:last-child, .log-item:last-child {
+      border-bottom: none;
+    }
+
+    .muted {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .success {
+      color: #0a7a2f;
+      font-weight: 600;
+      margin-top: 8px;
+      min-height: 1.2em;
+    }
   </style>
 </head>
 <body>
   <h1>PR Tracker</h1>
 
-  <div class="row">
-    <select id="exercise"></select>
-    <input id="value" type="number" placeholder="Weight" />
-  </div>
-  <button onclick="log()">+ Log</button>
+  <div class="card">
+    <h2>Log</h2>
+    <div class="row">
+      <select id="exercise"></select>
+    </div>
 
-  <div class="section">
+    <div class="row">
+      <input id="value" type="number" step="any" placeholder="Value" />
+      <select id="inputUnit">
+        <option value="kg">kg</option>
+        <option value="lbs">lbs</option>
+        <option value="sec">sec</option>
+        <option value="min">min</option>
+        <option value="reps">reps</option>
+      </select>
+    </div>
+
+    <button onclick="logEntry()">+ Log</button>
+    <div id="message" class="success"></div>
+  </div>
+
+  <div class="card">
     <h2>PRs</h2>
     <div id="prs"></div>
   </div>
 
-  <div class="section">
+  <div class="card">
     <h2>Recent</h2>
     <div id="recent"></div>
   </div>
 
-  <div class="section">
+  <div class="card">
     <h3>Add Exercise</h3>
-    <input id="newEx" placeholder="New exercise" />
-    <button onclick="addExercise()">Add</button>
+    <div class="row">
+      <input id="newEx" placeholder="New exercise" />
+    </div>
+
+    <div class="row">
+      <select id="unit">
+        <option value="kg">kg</option>
+        <option value="lbs">lbs</option>
+        <option value="sec">sec</option>
+        <option value="min">min</option>
+        <option value="reps">reps</option>
+      </select>
+    </div>
+
+    <button onclick="addExercise()">Add Exercise</button>
   </div>
 
-<script>
-let data = JSON.parse(localStorage.getItem("prdata")) || {
-  exercises: [
-    { name: "Bench press", unit: "kg", type: "weight" },
-    { name: "Dumbbell bench press", unit: "kg", type: "weight" }
-    { name: "Handstand", unit: "sec", type: "time" }
-  ],
-  logs: []
-};
+  <script>
+    let data = JSON.parse(localStorage.getItem("prdata")) || {
+      exercises: [
+        { name: "Squat", unit: "kg", type: "weight" },
+        { name: "Bench", unit: "kg", type: "weight" },
+        { name: "Plank", unit: "sec", type: "time" },
+        { name: "Pull-ups", unit: "reps", type: "reps" }
+      ],
+      logs: []
+    };
 
-function save() {
-  localStorage.setItem("prdata", JSON.stringify(data));
-}
+    function save() {
+      localStorage.setItem("prdata", JSON.stringify(data));
+    }
 
-// --- UNIT CONVERSION ---
-function toInternal(value, unit, type) {
-  if (type === "weight") {
-    if (unit === "lbs") return value * 0.453592;
-    return value; // kg
-  }
-  if (type === "time") {
-    if (unit === "min") return value * 60;
-    return value; // sec
-  }
-}
+    function getTypeFromUnit(unit) {
+      if (unit === "kg" || unit === "lbs") return "weight";
+      if (unit === "sec" || unit === "min") return "time";
+      if (unit === "reps") return "reps";
+      return "reps";
+    }
 
-function fromInternal(value, unit, type) {
-  if (type === "weight") {
-    if (unit === "lbs") return value / 0.453592;
-    return value;
-  }
-  if (type === "time") {
-    if (unit === "min") return value / 60;
-    return value;
-  }
-}
+    function toInternal(value, unit, type) {
+      if (type === "weight") {
+        if (unit === "lbs") return value * 0.45359237;
+        return value;
+      }
 
-// --- RENDER ---
-function render() {
-  let exSel = document.getElementById("exercise");
+      if (type === "time") {
+        if (unit === "min") return value * 60;
+        return value;
+      }
 
-  exSel.innerHTML = data.exercises
-    .map(e => `<option value="${e.name}">${e.name}</option>`)
-    .join("");
+      if (type === "reps") {
+        return value;
+      }
 
-  let prs = {};
-  data.logs.forEach(l => {
-    prs[l.exercise] = Math.max(prs[l.exercise] || 0, l.value);
-  });
+      return value;
+    }
 
-  document.getElementById("prs").innerHTML =
-    data.exercises.map(e => {
-      let val = prs[e.name];
-      let display = val ? fromInternal(val, e.unit, e.type).toFixed(1) : "-";
-      return `<div class="pr">${e.name}: ${display} ${e.unit}</div>`;
-    }).join("");
+    function fromInternal(value, unit, type) {
+      if (type === "weight") {
+        if (unit === "lbs") return value / 0.45359237;
+        return value;
+      }
 
-  let recent = [...data.logs].reverse().slice(0, 10);
+      if (type === "time") {
+        if (unit === "min") return value / 60;
+        return value;
+      }
 
-  document.getElementById("recent").innerHTML =
-    recent.map(l => {
-      let ex = data.exercises.find(e => e.name === l.exercise);
-      let display = fromInternal(l.value, ex.unit, ex.type).toFixed(1);
+      if (type === "reps") {
+        return value;
+      }
 
-      let isPR = l.value === Math.max(...data.logs
-        .filter(x => x.exercise === l.exercise)
-        .map(x => x.value));
+      return value;
+    }
 
-      return `<div>${l.exercise} ${display} ${ex.unit} ${isPR ? "🔥" : ""}</div>`;
-    }).join("");
-}
+    function formatValue(value, unit, type) {
+      if (value == null) return "-";
 
-// --- LOG ---
-function log() {
-  let exName = document.getElementById("exercise").value;
-  let inputUnit = document.getElementById("inputUnit").value;
-  let val = Number(document.getElementById("value").value);
+      const displayValue = fromInternal(value, unit, type);
 
-  if (!val) return;
+      if (type === "reps") {
+        return `${Math.round(displayValue)} ${unit}`;
+      }
 
-  let ex = data.exercises.find(e => e.name === exName);
-  let internal = toInternal(val, inputUnit, ex.type);
+      if (type === "time") {
+        if (unit === "sec") return `${Math.round(displayValue)} ${unit}`;
+        return `${displayValue.toFixed(1)} ${unit}`;
+      }
 
-  data.logs.push({
-    exercise: exName,
-    value: internal,
-    date: new Date().toISOString()
-  });
+      return `${displayValue.toFixed(1)} ${unit}`;
+    }
 
-  document.getElementById("value").value = "";
-  save();
-  render();
-}
+    function getExerciseByName(name) {
+      return data.exercises.find(e => e.name === name);
+    }
 
-// --- ADD EXERCISE ---
-function addExercise() {
-  let name = document.getElementById("newEx").value;
-  let unit = document.getElementById("unit").value;
+    function getPRInternal(exerciseName) {
+      const matching = data.logs.filter(l => l.exercise === exerciseName).map(l => l.value);
+      if (matching.length === 0) return null;
+      return Math.max(...matching);
+    }
 
-  if (!name) return;
+    function renderExerciseOptions() {
+      const exSel = document.getElementById("exercise");
+      const currentValue = exSel.value;
 
-  let type = (unit === "kg" || unit === "lbs") ? "weight" : "time";
+      exSel.innerHTML = data.exercises
+        .map(e => `<option value="${e.name}">${e.name}</option>`)
+        .join("");
 
-  data.exercises.push({ name, unit, type });
+      if (data.exercises.length === 0) {
+        exSel.innerHTML = `<option value="">No exercises yet</option>`;
+        return;
+      }
 
-  document.getElementById("newEx").value = "";
-  save();
-  render();
-}
+      const exists = data.exercises.some(e => e.name === currentValue);
+      exSel.value = exists ? currentValue : data.exercises[0].name;
+      syncInputUnitToExercise();
+    }
 
-render();
+    function renderPRs() {
+      const prsEl = document.getElementById("prs");
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js");
-}
-</script>
+      if (data.exercises.length === 0) {
+        prsEl.innerHTML = `<div class="muted">No exercises yet.</div>`;
+        return;
+      }
+
+      prsEl.innerHTML = data.exercises.map(e => {
+        const pr = getPRInternal(e.name);
+        return `<div class="pr-item"><strong>${e.name}</strong>: ${formatValue(pr, e.unit, e.type)}</div>`;
+      }).join("");
+    }
+
+    function renderRecent() {
+      const recentEl = document.getElementById("recent");
+      const recent = [...data.logs].reverse().slice(0, 10);
+
+      if (recent.length === 0) {
+        recentEl.innerHTML = `<div class="muted">No logs yet.</div>`;
+        return;
+      }
+
+      recentEl.innerHTML = recent.map(l => {
+        const ex = getExerciseByName(l.exercise);
+        if (!ex) return "";
+
+        const pr = getPRInternal(l.exercise);
+        const isPR = pr !== null && l.value === pr;
+
+        const date = new Date(l.date);
+        const dateString = date.toLocaleDateString();
+
+        return `
+          <div class="log-item">
+            <strong>${l.exercise}</strong>: ${formatValue(l.value, ex.unit, ex.type)}
+            ${isPR ? "🔥" : ""}
+            <div class="muted">${dateString}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function render() {
+      renderExerciseOptions();
+      renderPRs();
+      renderRecent();
+    }
+
+    function syncInputUnitToExercise() {
+      const exName = document.getElementById("exercise").value;
+      const ex = getExerciseByName(exName);
+      if (!ex) return;
+      document.getElementById("inputUnit").value = ex.unit;
+    }
+
+    function showMessage(text) {
+      document.getElementById("message").textContent = text;
+      setTimeout(() => {
+        if (document.getElementById("message").textContent === text) {
+          document.getElementById("message").textContent = "";
+        }
+      }, 2000);
+    }
+
+    function logEntry() {
+      const exName = document.getElementById("exercise").value;
+      const valueInput = document.getElementById("value");
+      const inputUnit = document.getElementById("inputUnit").value;
+      const rawValue = Number(valueInput.value);
+
+      if (!exName) return;
+      if (!rawValue || rawValue <= 0) return;
+
+      const ex = getExerciseByName(exName);
+      if (!ex) return;
+
+      const previousPR = getPRInternal(exName);
+      const internalValue = toInternal(rawValue, inputUnit, ex.type);
+
+      data.logs.push({
+        exercise: exName,
+        value: internalValue,
+        date: new Date().toISOString()
+      });
+
+      save();
+      render();
+
+      const newPR = getPRInternal(exName);
+      if (previousPR === null || internalValue > previousPR) {
+        showMessage("🔥 New PR!");
+      } else {
+        showMessage("Logged.");
+      }
+
+      valueInput.value = "";
+      valueInput.focus();
+    }
+
+    function addExercise() {
+      const nameInput = document.getElementById("newEx");
+      const unitInput = document.getElementById("unit");
+
+      const name = nameInput.value.trim();
+      const unit = unitInput.value;
+
+      if (!name) return;
+
+      const alreadyExists = data.exercises.some(
+        e => e.name.toLowerCase() === name.toLowerCase()
+      );
+
+      if (alreadyExists) {
+        showMessage("Exercise already exists.");
+        return;
+      }
+
+      data.exercises.push({
+        name,
+        unit,
+        type: getTypeFromUnit(unit)
+      });
+
+      save();
+      render();
+
+      document.getElementById("exercise").value = name;
+      syncInputUnitToExercise();
+
+      nameInput.value = "";
+      showMessage("Exercise added.");
+    }
+
+    document.getElementById("exercise").addEventListener("change", syncInputUnitToExercise);
+
+    document.getElementById("value").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        logEntry();
+      }
+    });
+
+    render();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("service-worker.js");
+      });
+    }
+  </script>
 </body>
 </html>
