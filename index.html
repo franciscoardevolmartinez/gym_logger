@@ -8,11 +8,23 @@
   <link rel="preconnect" href="https://www.gstatic.com" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
+    :root {
+      --bg: #f4f1ec;
+      --card: #fffaf2;
+      --ink: #181512;
+      --muted: #70685d;
+      --line: #ded6ca;
+      --primary: #1967d2;
+      --primary-dark: #0f3f8c;
+      --danger: #b42318;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      margin: 16px;
-      background: #f7f7f7;
-      color: #111;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 20px;
     }
 
     h1, h2, h3 {
@@ -20,11 +32,12 @@
     }
 
     .card {
-      background: white;
+      background: var(--card);
       border-radius: 8px;
+      border: 1px solid var(--line);
       padding: 16px;
       margin-bottom: 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      box-shadow: 0 12px 30px rgba(32, 25, 18, 0.08);
     }
 
     .row {
@@ -42,26 +55,27 @@
       font-size: 17px;
       padding: 12px;
       border-radius: 8px;
-      border: 1px solid #d0d0d0;
+      border: 1px solid var(--line);
       box-sizing: border-box;
       width: 100%;
       background: white;
+      color: var(--ink);
     }
 
     button {
-      background: #111;
+      background: var(--primary);
       color: white;
       border: none;
       font-weight: 600;
     }
 
     button.secondary {
-      background: #e9e9e9;
-      color: #111;
+      background: #e7e0d6;
+      color: var(--ink);
     }
 
     button.danger {
-      background: #b42318;
+      background: var(--danger);
       color: white;
     }
 
@@ -80,10 +94,14 @@
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 16px;
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .topbar h1 {
       margin: 0;
+      letter-spacing: 0;
     }
 
     .account {
@@ -110,35 +128,44 @@
       gap: 8px;
       grid-template-columns: repeat(5, minmax(0, 1fr));
       margin-bottom: 16px;
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .tabs button {
-      background: #e9e9e9;
-      color: #111;
+      background: #e7e0d6;
+      color: var(--ink);
       font-size: 14px;
       padding: 10px 8px;
     }
 
     .tabs button.active {
-      background: #111;
+      background: var(--ink);
       color: white;
+    }
+
+    main, #setupCard, #authCard, #loadingCard {
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .view.hidden {
       display: none;
     }
 
-    .pr-item, .log-item, .history-item {
+    .pr-item, .log-item, .history-item, .suggestion-item {
       padding: 10px 0;
       border-bottom: 1px solid #eee;
     }
 
-    .pr-item:last-child, .log-item:last-child, .history-item:last-child {
+    .pr-item:last-child, .log-item:last-child, .history-item:last-child, .suggestion-item:last-child {
       border-bottom: none;
     }
 
     .muted {
-      color: #666;
+      color: var(--muted);
       font-size: 14px;
       margin-top: 3px;
     }
@@ -167,6 +194,10 @@
     }
 
     @media (max-width: 640px) {
+      body {
+        padding: 16px;
+      }
+
       .topbar {
         align-items: flex-start;
         flex-direction: column;
@@ -182,6 +213,23 @@
 
       .tabs {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (min-width: 900px) {
+      #logView:not(.hidden) {
+        align-items: start;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: minmax(320px, 0.82fr) minmax(420px, 1.18fr);
+      }
+
+      #logView .card {
+        margin-bottom: 0;
+      }
+
+      #exercisesView .card {
+        max-width: 760px;
       }
     }
   </style>
@@ -296,6 +344,12 @@
         </div>
         <button id="addExerciseButton" type="button">Add Exercise</button>
 
+        <div id="adminTools" class="hidden">
+          <h3 style="margin-top: 20px;">Shared Exercise Review</h3>
+          <button id="exportExercisesButton" class="secondary" type="button">Export Shared CSV</button>
+          <div id="suggestions"></div>
+        </div>
+
         <h3 style="margin-top: 20px;">Delete Exercise</h3>
         <div class="row">
           <select id="deleteExercise"></select>
@@ -332,7 +386,10 @@
     let currentUser = null;
     let chartInstance = null;
     let chartLoadPromise = null;
+    let globalExercises = [];
     let isSaving = false;
+    let isAdmin = false;
+    let suggestions = [];
     let data = { exercises: [], logs: [] };
     let addDoc = null;
     let collection = null;
@@ -356,10 +413,12 @@
       account: document.getElementById("account"),
       accountName: document.getElementById("accountName"),
       addExerciseButton: document.getElementById("addExerciseButton"),
+      adminTools: document.getElementById("adminTools"),
       app: document.getElementById("app"),
       authCard: document.getElementById("authCard"),
       authMessage: document.getElementById("authMessage"),
       deleteExerciseButton: document.getElementById("deleteExerciseButton"),
+      exportExercisesButton: document.getElementById("exportExercisesButton"),
       loadingCard: document.getElementById("loadingCard"),
       logButton: document.getElementById("logButton"),
       newExerciseTags: document.getElementById("newExerciseTags"),
@@ -367,6 +426,7 @@
       setupCard: document.getElementById("setupCard"),
       signInButton: document.getElementById("signInButton"),
       signOutButton: document.getElementById("signOutButton"),
+      suggestions: document.getElementById("suggestions"),
       tabButtons: document.querySelectorAll("[data-view-target]"),
       viewSections: document.querySelectorAll(".view")
     };
@@ -445,6 +505,24 @@
       if (!Array.isArray(a) || !Array.isArray(b)) return false;
       if (a.length !== b.length) return false;
       return a.every((item, index) => item === b[index]);
+    }
+
+    function slugify(text) {
+      return String(text || "")
+        .trim()
+        .toLowerCase()
+        .replace(/['’]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
     function getUnitsForType(type) {
@@ -538,6 +616,13 @@
       return `default-${defaultExercise.slug}`;
     }
 
+    function getApprovedExerciseCatalog() {
+      const merged = new Map();
+      DEFAULT_EXERCISES.forEach(exercise => merged.set(exercise.slug, exercise));
+      globalExercises.forEach(exercise => merged.set(exercise.slug, exercise));
+      return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     function defaultMatchesExercise(defaultExercise, exerciseName, exerciseSlug = null) {
       if (exerciseSlug && defaultExercise.slug === exerciseSlug) return true;
 
@@ -564,7 +649,7 @@
       const type = raw.type || getTypeFromUnit(unit);
       const matchingDefault = DEFAULT_EXERCISES.find(item =>
         defaultMatchesExercise(item, name, raw.slug)
-      );
+      ) || globalExercises.find(item => defaultMatchesExercise(item, name, raw.slug));
       const slug = raw.slug || matchingDefault?.slug || null;
 
       return {
@@ -648,6 +733,31 @@
 
     function renderDeleteExerciseOptions() {
       renderSelectOptions("deleteExercise");
+    }
+
+    function renderAdminTools() {
+      els.adminTools.classList.toggle("hidden", !isAdmin);
+      if (!isAdmin) return;
+
+      if (suggestions.length === 0) {
+        els.suggestions.innerHTML = `<div class="muted">No exercise suggestions waiting for review.</div>`;
+        return;
+      }
+
+      els.suggestions.innerHTML = suggestions.map(suggestion => `
+        <div class="suggestion-item">
+          <strong>${escapeHtml(suggestion.name)}</strong>
+          <div class="muted">
+            ${escapeHtml(suggestion.type)} · ${escapeHtml(suggestion.unit)}
+            ${suggestion.tags?.length ? ` · ${escapeHtml(suggestion.tags.join(", "))}` : ""}
+          </div>
+          <div class="muted">Suggested by ${escapeHtml(suggestion.suggestedByEmail || "unknown")}</div>
+          <div class="row" style="margin-top: 8px;">
+            <button data-approve-suggestion="${escapeHtml(suggestion.id)}" type="button">Approve</button>
+            <button class="secondary" data-dismiss-suggestion="${escapeHtml(suggestion.id)}" type="button">Dismiss</button>
+          </div>
+        </div>
+      `).join("");
     }
 
     function renderPRs() {
@@ -826,6 +936,7 @@
       renderPRs();
       renderRecent();
       renderHistory();
+      renderAdminTools();
       renderChart();
       syncNewExerciseUnitOptions();
     }
@@ -847,6 +958,10 @@
 
     function userCollection(name) {
       return collection(db, "users", currentUser.uid, name);
+    }
+
+    function publicCollection(name) {
+      return collection(db, name);
     }
 
     async function loadFirebaseAuthSdk() {
@@ -908,6 +1023,50 @@
       return { ...profile, initialized: false };
     }
 
+    async function checkAdminAccess() {
+      const snap = await getDoc(doc(db, "admins", currentUser.uid));
+      isAdmin = snap.exists();
+    }
+
+    function normalizeCatalogExercise(raw) {
+      const name = String(raw.name || "").trim();
+      const slug = slugify(raw.slug || name);
+      const unit = raw.unit || "reps";
+      const type = raw.type || getTypeFromUnit(unit);
+
+      if (!name || !slug) return null;
+
+      return {
+        aliases: Array.isArray(raw.aliases) ? raw.aliases : [],
+        isDefault: true,
+        name,
+        schemaVersion: raw.schemaVersion || DATA_SCHEMA_VERSION,
+        slug,
+        tags: Array.isArray(raw.tags) ? raw.tags : [],
+        type,
+        unit
+      };
+    }
+
+    async function loadGlobalExercises() {
+      const snap = await getDocs(query(publicCollection("globalExercises"), orderBy("name")));
+      globalExercises = snap.docs
+        .map(item => normalizeCatalogExercise({ id: item.id, ...item.data() }))
+        .filter(Boolean);
+    }
+
+    async function loadSuggestions() {
+      if (!isAdmin) {
+        suggestions = [];
+        return;
+      }
+
+      const snap = await getDocs(query(publicCollection("exerciseSuggestions"), orderBy("name")));
+      suggestions = snap.docs
+        .map(item => ({ id: item.id, ...item.data() }))
+        .filter(item => item.status !== "dismissed");
+    }
+
     async function seedData(rawData) {
       const batch = writeBatch(db);
       const normalized = normalizeData(rawData);
@@ -939,7 +1098,7 @@
       await batch.commit();
     }
 
-    async function syncDefaultExercises() {
+    async function syncDefaultExercises(catalog = getApprovedExerciseCatalog()) {
       const batch = writeBatch(db);
       let hasChanges = false;
       const exercisesBySlug = new Map();
@@ -948,7 +1107,7 @@
         if (exercise.slug) exercisesBySlug.set(exercise.slug, exercise);
       });
 
-      for (const defaultExercise of DEFAULT_EXERCISES) {
+      for (const defaultExercise of catalog) {
         const existingBySlug = exercisesBySlug.get(defaultExercise.slug);
         const existingByName = data.exercises.find(exercise =>
           !exercise.slug && defaultMatchesExercise(defaultExercise, exercise.name)
@@ -1037,7 +1196,11 @@
 
     async function initializeUserData() {
       await ensureFirestoreReady();
-      const profile = await ensureUserProfile();
+      await checkAdminAccess();
+      const [profile] = await Promise.all([
+        ensureUserProfile(),
+        loadGlobalExercises()
+      ]);
       let shouldSyncDefaults = profile.defaultCatalogVersion !== DEFAULT_CATALOG_VERSION;
 
       if (!profile.initialized) {
@@ -1047,10 +1210,11 @@
       }
 
       await loadCloudData();
-      if (shouldSyncDefaults) {
+      if (shouldSyncDefaults || globalExercises.length > 0) {
         const defaultsChanged = await syncDefaultExercises();
         if (defaultsChanged) await loadCloudData();
       }
+      await loadSuggestions();
     }
 
     async function logEntry() {
@@ -1156,11 +1320,33 @@
           schemaVersion: DATA_SCHEMA_VERSION
         };
 
-        await setDoc(doc(db, "users", currentUser.uid, "exercises", exercise.id), {
+        const suggestionSlug = slugify(name);
+        const batch = writeBatch(db);
+        const userExerciseRef = doc(db, "users", currentUser.uid, "exercises", exercise.id);
+        const suggestionRef = doc(publicCollection("exerciseSuggestions"));
+
+        batch.set(userExerciseRef, {
           ...exercise,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+
+        batch.set(suggestionRef, {
+          aliases: [],
+          name,
+          schemaVersion: DATA_SCHEMA_VERSION,
+          slug: suggestionSlug,
+          status: "pending",
+          suggestedBy: currentUser.uid,
+          suggestedByEmail: currentUser.email || "",
+          tags,
+          type,
+          unit,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        await batch.commit();
 
         data.exercises.push(exercise);
         data.exercises.sort((a, b) => a.name.localeCompare(b.name));
@@ -1174,9 +1360,96 @@
 
         nameInput.value = "";
         els.newExerciseTags.value = "";
-        showManageMessage("Exercise added.");
+        showManageMessage("Exercise added and suggested for everyone.");
       } catch (error) {
         showManageMessage("Could not save exercise.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    function csvEscape(value) {
+      const text = Array.isArray(value) ? value.join(", ") : String(value ?? "");
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+
+    function exportSharedExercisesCsv() {
+      const catalog = getApprovedExerciseCatalog();
+      const rows = [
+        ["slug", "name", "type", "unit", "tags", "aliases"],
+        ...catalog.map(exercise => [
+          exercise.slug,
+          exercise.name,
+          exercise.type,
+          exercise.unit,
+          exercise.tags || [],
+          exercise.aliases || []
+        ])
+      ];
+      const csv = rows.map(row => row.map(csvEscape).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "gym-exercises.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function approveSuggestion(suggestionId) {
+      if (!isAdmin || isSaving) return;
+
+      const suggestion = suggestions.find(item => item.id === suggestionId);
+      if (!suggestion) return;
+
+      const approved = normalizeCatalogExercise(suggestion);
+      if (!approved) return;
+
+      setControlsDisabled(true);
+
+      try {
+        const batch = writeBatch(db);
+        batch.set(doc(db, "globalExercises", approved.slug), {
+          ...approved,
+          approvedBy: currentUser.uid,
+          approvedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        batch.delete(doc(db, "exerciseSuggestions", suggestionId));
+        await batch.commit();
+
+        await loadGlobalExercises();
+        await loadSuggestions();
+        const defaultsChanged = await syncDefaultExercises();
+        if (defaultsChanged) await loadCloudData();
+        render();
+        showManageMessage("Shared exercise approved.");
+      } catch (error) {
+        showManageMessage("Could not approve suggestion.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    async function dismissSuggestion(suggestionId) {
+      if (!isAdmin || isSaving) return;
+
+      setControlsDisabled(true);
+
+      try {
+        await setDoc(doc(db, "exerciseSuggestions", suggestionId), {
+          dismissedBy: currentUser.uid,
+          dismissedAt: serverTimestamp(),
+          status: "dismissed",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        await loadSuggestions();
+        renderAdminTools();
+        showManageMessage("Suggestion dismissed.");
+      } catch (error) {
+        showManageMessage("Could not dismiss suggestion.");
         console.error(error);
       } finally {
         setControlsDisabled(false);
@@ -1256,6 +1529,7 @@
       els.logButton.addEventListener("click", logEntry);
       els.addExerciseButton.addEventListener("click", addExercise);
       els.deleteExerciseButton.addEventListener("click", deleteExercise);
+      els.exportExercisesButton.addEventListener("click", exportSharedExercisesCsv);
 
       document.getElementById("exercise").addEventListener("change", () => {
         syncInputUnitToExercise();
@@ -1264,6 +1538,13 @@
       els.newExerciseType.addEventListener("change", syncNewExerciseUnitOptions);
       els.tabButtons.forEach(button => {
         button.addEventListener("click", () => showView(button.dataset.viewTarget));
+      });
+
+      els.suggestions.addEventListener("click", event => {
+        const approveId = event.target.dataset.approveSuggestion;
+        const dismissId = event.target.dataset.dismissSuggestion;
+        if (approveId) approveSuggestion(approveId);
+        if (dismissId) dismissSuggestion(dismissId);
       });
 
       document.getElementById("historyExercise").addEventListener("change", renderHistory);
@@ -1294,6 +1575,9 @@
 
         if (!user) {
           data = { exercises: [], logs: [] };
+          globalExercises = [];
+          isAdmin = false;
+          suggestions = [];
           showOnly("auth");
           return;
         }
