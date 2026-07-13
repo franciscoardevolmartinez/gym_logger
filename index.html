@@ -977,12 +977,19 @@
       try {
         await signInWithPopup(auth, provider);
       } catch (error) {
-        if (["auth/popup-blocked", "auth/popup-closed-by-user", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
+        if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
           await signInWithRedirect(auth, provider);
           return;
         }
 
-        els.authMessage.textContent = "Could not sign in with Google.";
+        if (error.code === "auth/popup-closed-by-user") {
+          els.authMessage.textContent = "Sign-in was closed before it finished.";
+        } else if (error.code === "auth/unauthorized-domain") {
+          els.authMessage.textContent = `Add ${window.location.hostname} to Firebase Auth authorized domains.`;
+        } else {
+          els.authMessage.textContent = `Could not sign in with Google (${error.code || "unknown error"}).`;
+        }
+
         console.error(error);
       }
     }
