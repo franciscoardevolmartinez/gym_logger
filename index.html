@@ -652,15 +652,25 @@
 
     function renderPRs() {
       const prsEl = document.getElementById("prs");
+      const exercisesWithPrs = data.exercises
+        .map(exercise => ({
+          exercise,
+          pr: getPRInternal(exercise.id),
+          last: getLastLog(exercise.id)
+        }))
+        .filter(item => item.pr !== null);
 
       if (data.exercises.length === 0) {
         prsEl.innerHTML = `<div class="muted">No exercises yet.</div>`;
         return;
       }
 
-      prsEl.innerHTML = data.exercises.map(e => {
-        const pr = getPRInternal(e.id);
-        const last = getLastLog(e.id);
+      if (exercisesWithPrs.length === 0) {
+        prsEl.innerHTML = `<div class="muted">No PRs yet.</div>`;
+        return;
+      }
+
+      prsEl.innerHTML = exercisesWithPrs.map(({ exercise: e, pr, last }) => {
 
         let lastLine = `<div class="muted">Last: -</div>`;
         if (last) {
