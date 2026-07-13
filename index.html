@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PR Tracker</title>
   <link rel="manifest" href="manifest.json" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://www.gstatic.com" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
@@ -271,6 +272,7 @@
     const DATA_SCHEMA_VERSION = 1;
     const LEGACY_LOCAL_STORAGE_KEY = "prdata";
     const FIREBASE_SDK_VERSION = "10.12.5";
+    const CHART_JS_URL = "https://cdn.jsdelivr.net/npm/chart.js";
     let provider = null;
     const defaultData = {
       exercises: [
@@ -287,6 +289,7 @@
     let db = null;
     let currentUser = null;
     let chartInstance = null;
+    let chartLoadPromise = null;
     let isSaving = false;
     let data = { exercises: [], logs: [] };
     let addDoc = null;
@@ -623,7 +626,24 @@
       `).join("");
     }
 
-    function renderChart() {
+    function loadChartJs() {
+      if (window.Chart) return Promise.resolve();
+
+      if (!chartLoadPromise) {
+        chartLoadPromise = new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = CHART_JS_URL;
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      return chartLoadPromise;
+    }
+
+    async function renderChart() {
       const sel = document.getElementById("chartExercise");
       const exerciseId = sel.value;
       const canvas = document.getElementById("progressChart");
@@ -647,7 +667,14 @@
       const labels = logs.map(l => new Date(l.date).toLocaleDateString());
       const values = logs.map(l => Number(fromInternal(l.value, ex.unit, ex.type).toFixed(2)));
 
-      chartInstance = new Chart(canvas, {
+      try {
+        await loadChartJs();
+      } catch (error) {
+        console.error(error);
+        return;
+      }
+
+      chartInstance = new window.Chart(canvas, {
         type: "line",
         data: {
           labels,
@@ -701,15 +728,13 @@
       return collection(db, "users", currentUser.uid, name);
     }
 
-    async function loadFirebaseSdk() {
+    async function loadFirebaseAuthSdk() {
       const [
         appModule,
-        authModule,
-        firestoreModule
+        authModule
       ] = await Promise.all([
         import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`),
-        import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`),
-        import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`)
+        import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`)
       ]);
 
       initializeApp = appModule.initializeApp;
@@ -719,7 +744,12 @@
       signInWithPopup = authModule.signInWithPopup;
       signInWithRedirect = authModule.signInWithRedirect;
       signOut = authModule.signOut;
+    }
 
+    async function loadFirestoreSdk() {
+      if (getFirestore) return;
+
+      const firestoreModule = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`);
       addDoc = firestoreModule.addDoc;
       collection = firestoreModule.collection;
       doc = firestoreModule.doc;
@@ -731,6 +761,11 @@
       serverTimestamp = firestoreModule.serverTimestamp;
       setDoc = firestoreModule.setDoc;
       writeBatch = firestoreModule.writeBatch;
+    }
+
+    async function ensureFirestoreReady() {
+      await loadFirestoreSdk();
+      if (!db) db = getFirestore(app);
     }
 
     async function ensureUserProfile() {
@@ -798,6 +833,7 @@
     }
 
     async function initializeUserData() {
+      await ensureFirestoreReady();
       const profile = await ensureUserProfile();
 
       if (!profile.initialized) {
@@ -1023,11 +1059,10 @@
         return;
       }
 
-      await loadFirebaseSdk();
+      await loadFirebaseAuthSdk();
 
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
-      db = getFirestore(app);
 
       onAuthStateChanged(auth, async user => {
         currentUser = user;
