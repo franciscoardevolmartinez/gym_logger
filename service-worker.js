@@ -1,4 +1,4 @@
-const CACHE_NAME = "pr-app-v3";
+const CACHE_NAME = "pr-app-v4";
 
 self.addEventListener("activate", e => {
   e.waitUntil(
@@ -18,8 +18,24 @@ self.addEventListener("install", e => {
 });
 
 self.addEventListener("fetch", e => {
-  if (new URL(e.request.url).pathname.endsWith("/firebase-config.js")) {
-    e.respondWith(fetch(e.request));
+  const url = new URL(e.request.url);
+  const shouldFetchFresh =
+    e.request.mode === "navigate" ||
+    url.pathname.endsWith("/") ||
+    url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/firebase-config.js") ||
+    url.pathname.endsWith("/service-worker.js");
+
+  if (shouldFetchFresh) {
+    e.respondWith(
+      fetch(e.request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(e.request))
+    );
     return;
   }
 
