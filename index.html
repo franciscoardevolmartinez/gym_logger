@@ -105,6 +105,29 @@
       white-space: nowrap;
     }
 
+    .tabs {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .tabs button {
+      background: #e9e9e9;
+      color: #111;
+      font-size: 14px;
+      padding: 10px 8px;
+    }
+
+    .tabs button.active {
+      background: #111;
+      color: white;
+    }
+
+    .view.hidden {
+      display: none;
+    }
+
     .pr-item, .log-item, .history-item {
       padding: 10px 0;
       border-bottom: 1px solid #eee;
@@ -156,6 +179,10 @@
       .account button {
         width: auto;
       }
+
+      .tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
     }
   </style>
 </head>
@@ -190,80 +217,91 @@
   </div>
 
   <main id="app" class="hidden">
-    <div class="card">
-      <h2>Log</h2>
+    <nav class="tabs" aria-label="App sections">
+      <button class="active" data-view-target="logView" type="button">Log</button>
+      <button data-view-target="prsView" type="button">PRs</button>
+      <button data-view-target="recentView" type="button">Recent</button>
+      <button data-view-target="historyView" type="button">History</button>
+      <button data-view-target="exercisesView" type="button">Exercises</button>
+    </nav>
 
-      <div class="row">
-        <select id="exercise"></select>
+    <section id="logView" class="view">
+      <div class="card">
+        <h2>Log</h2>
+
+        <div class="row">
+          <select id="exercise"></select>
+        </div>
+
+        <div class="row">
+          <input id="value" type="number" step="any" placeholder="Value" />
+          <select id="inputUnit"></select>
+        </div>
+
+        <button id="logButton" type="button">+ Log</button>
+        <div id="message" class="success"></div>
       </div>
 
-      <div class="row">
-        <input id="value" type="number" step="any" placeholder="Value" />
-        <select id="inputUnit">
-          <option value="kg">kg</option>
-          <option value="lbs">lbs</option>
-          <option value="sec">sec</option>
-          <option value="min">min</option>
-          <option value="reps">reps</option>
-        </select>
+      <div class="card">
+        <h2>Progress</h2>
+        <div class="row">
+          <select id="chartExercise"></select>
+        </div>
+        <canvas id="progressChart"></canvas>
       </div>
+    </section>
 
-      <button id="logButton" type="button">+ Log</button>
-      <div id="message" class="success"></div>
-    </div>
-
-    <div class="card">
-      <h2>PRs</h2>
-      <div id="prs"></div>
-    </div>
-
-    <div class="card">
-      <h2>Recent</h2>
-      <div id="recent"></div>
-    </div>
-
-    <div class="card">
-      <h2>History</h2>
-      <div class="row">
-        <select id="historyExercise"></select>
+    <section id="prsView" class="view hidden">
+      <div class="card">
+        <h2>PRs</h2>
+        <div id="prs"></div>
       </div>
-      <div id="historyList"></div>
-    </div>
+    </section>
 
-    <div class="card">
-      <h2>Progress</h2>
-      <div class="row">
-        <select id="chartExercise"></select>
+    <section id="recentView" class="view hidden">
+      <div class="card">
+        <h2>Recent</h2>
+        <div id="recent"></div>
       </div>
-      <canvas id="progressChart"></canvas>
-    </div>
+    </section>
 
-    <div class="card">
-      <h2>Manage Exercises</h2>
-
-      <h3 style="margin-top: 0;">Add Exercise</h3>
-      <div class="row">
-        <input id="newEx" placeholder="New exercise" />
+    <section id="historyView" class="view hidden">
+      <div class="card">
+        <h2>History</h2>
+        <div class="row">
+          <select id="historyExercise"></select>
+        </div>
+        <div id="historyList"></div>
       </div>
-      <div class="row">
-        <select id="unit">
-          <option value="kg">kg</option>
-          <option value="lbs">lbs</option>
-          <option value="sec">sec</option>
-          <option value="min">min</option>
-          <option value="reps">reps</option>
-        </select>
-      </div>
-      <button id="addExerciseButton" type="button">Add Exercise</button>
+    </section>
 
-      <h3 style="margin-top: 20px;">Delete Exercise</h3>
-      <div class="row">
-        <select id="deleteExercise"></select>
-      </div>
-      <button id="deleteExerciseButton" class="danger" type="button">Delete Exercise</button>
+    <section id="exercisesView" class="view hidden">
+      <div class="card">
+        <h2>Manage Exercises</h2>
 
-      <div id="manageMessage" class="danger-text"></div>
-    </div>
+        <h3 style="margin-top: 0;">Add Exercise</h3>
+        <div class="row">
+          <input id="newEx" placeholder="New exercise" />
+        </div>
+        <div class="row">
+          <select id="newExerciseType">
+            <option value="weight">Weight</option>
+            <option value="time">Time</option>
+            <option value="reps">Reps</option>
+          </select>
+          <select id="unit"></select>
+        </div>
+        <button id="addExerciseButton" type="button">Add Exercise</button>
+
+        <h3 style="margin-top: 20px;">Delete Exercise</h3>
+        <div class="row">
+          <select id="deleteExercise"></select>
+        </div>
+        <button id="deleteExerciseButton" class="danger" type="button">Delete Exercise</button>
+
+        <div id="manageMessage" class="danger-text"></div>
+      </div>
+    </section>
   </main>
 
   <script type="module">
@@ -273,6 +311,11 @@
     const LEGACY_LOCAL_STORAGE_KEY = "prdata";
     const FIREBASE_SDK_VERSION = "10.12.5";
     const CHART_JS_URL = "https://cdn.jsdelivr.net/npm/chart.js";
+    const UNITS_BY_TYPE = {
+      weight: ["kg", "lbs"],
+      time: ["sec", "min"],
+      reps: ["reps"]
+    };
     let provider = null;
     const defaultData = {
       exercises: [
@@ -320,9 +363,12 @@
       deleteExerciseButton: document.getElementById("deleteExerciseButton"),
       loadingCard: document.getElementById("loadingCard"),
       logButton: document.getElementById("logButton"),
+      newExerciseType: document.getElementById("newExerciseType"),
       setupCard: document.getElementById("setupCard"),
       signInButton: document.getElementById("signInButton"),
-      signOutButton: document.getElementById("signOutButton")
+      signOutButton: document.getElementById("signOutButton"),
+      tabButtons: document.querySelectorAll("[data-view-target]"),
+      viewSections: document.querySelectorAll(".view")
     };
 
     function hasFirebaseConfig(config) {
@@ -350,6 +396,19 @@
       els.logButton.disabled = disabled;
     }
 
+    function showView(viewId) {
+      els.viewSections.forEach(section => {
+        section.classList.toggle("hidden", section.id !== viewId);
+      });
+
+      els.tabButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.viewTarget === viewId);
+      });
+
+      if (viewId === "logView") renderChart();
+      if (viewId === "historyView") renderHistory();
+    }
+
     function showMessage(text) {
       const el = document.getElementById("message");
       el.textContent = text;
@@ -371,6 +430,17 @@
       if (unit === "sec" || unit === "min") return "time";
       if (unit === "reps") return "reps";
       return "reps";
+    }
+
+    function getUnitsForType(type) {
+      return UNITS_BY_TYPE[type] || UNITS_BY_TYPE.reps;
+    }
+
+    function updateUnitSelect(selectId, type, preferredUnit = null) {
+      const select = document.getElementById(selectId);
+      const units = getUnitsForType(type);
+      select.innerHTML = units.map(unit => `<option value="${unit}">${unit}</option>`).join("");
+      select.value = units.includes(preferredUnit) ? preferredUnit : units[0];
     }
 
     function toInternal(value, unit, type) {
@@ -711,13 +781,18 @@
       renderRecent();
       renderHistory();
       renderChart();
+      syncNewExerciseUnitOptions();
     }
 
     function syncInputUnitToExercise() {
       const exerciseId = document.getElementById("exercise").value;
       const ex = getExerciseById(exerciseId);
       if (!ex) return;
-      document.getElementById("inputUnit").value = ex.unit;
+      updateUnitSelect("inputUnit", ex.type, ex.unit);
+    }
+
+    function syncNewExerciseUnitOptions() {
+      updateUnitSelect("unit", els.newExerciseType.value);
     }
 
     function userDocRef() {
@@ -857,6 +932,11 @@
 
       const ex = getExerciseById(exerciseId);
       if (!ex) return;
+      if (!getUnitsForType(ex.type).includes(inputUnit)) {
+        showMessage(`Use ${getUnitsForType(ex.type).join(" or ")} for ${ex.name}.`);
+        syncInputUnitToExercise();
+        return;
+      }
 
       const previousPR = getPRInternal(exerciseId);
       const internalValue = toInternal(rawValue, inputUnit, ex.type);
@@ -909,6 +989,7 @@
 
       const nameInput = document.getElementById("newEx");
       const unitInput = document.getElementById("unit");
+      const type = els.newExerciseType.value;
       const name = nameInput.value.trim();
       const unit = unitInput.value;
 
@@ -933,7 +1014,7 @@
           id: crypto.randomUUID(),
           name,
           unit,
-          type: getTypeFromUnit(unit),
+          type,
           schemaVersion: DATA_SCHEMA_VERSION
         };
 
@@ -1039,6 +1120,11 @@
 
       document.getElementById("exercise").addEventListener("change", () => {
         syncInputUnitToExercise();
+      });
+
+      els.newExerciseType.addEventListener("change", syncNewExerciseUnitOptions);
+      els.tabButtons.forEach(button => {
+        button.addEventListener("click", () => showView(button.dataset.viewTarget));
       });
 
       document.getElementById("historyExercise").addEventListener("change", renderHistory);
