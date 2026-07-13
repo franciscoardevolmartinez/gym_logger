@@ -291,6 +291,9 @@
           </select>
           <select id="unit"></select>
         </div>
+        <div class="row">
+          <input id="newExerciseTags" placeholder="Tags, comma separated" />
+        </div>
         <button id="addExerciseButton" type="button">Add Exercise</button>
 
         <h3 style="margin-top: 20px;">Delete Exercise</h3>
@@ -317,13 +320,14 @@
       reps: ["reps"]
     };
     let provider = null;
+    const DEFAULT_EXERCISES = [
+      { slug: "squat", name: "Squat", unit: "kg", type: "weight", tags: ["legs", "barbell"] },
+      { slug: "bench", name: "Bench", unit: "kg", type: "weight", tags: ["chest", "push", "barbell"] },
+      { slug: "plank", name: "Plank", unit: "sec", type: "time", tags: ["core", "bodyweight"] },
+      { slug: "pull-ups", name: "Pull-ups", unit: "reps", type: "reps", tags: ["back", "pull", "bodyweight"] }
+    ];
     const defaultData = {
-      exercises: [
-        { name: "Squat", unit: "kg", type: "weight" },
-        { name: "Bench", unit: "kg", type: "weight" },
-        { name: "Plank", unit: "sec", type: "time" },
-        { name: "Pull-ups", unit: "reps", type: "reps" }
-      ],
+      exercises: DEFAULT_EXERCISES,
       logs: []
     };
 
@@ -363,6 +367,7 @@
       deleteExerciseButton: document.getElementById("deleteExerciseButton"),
       loadingCard: document.getElementById("loadingCard"),
       logButton: document.getElementById("logButton"),
+      newExerciseTags: document.getElementById("newExerciseTags"),
       newExerciseType: document.getElementById("newExerciseType"),
       setupCard: document.getElementById("setupCard"),
       signInButton: document.getElementById("signInButton"),
@@ -430,6 +435,29 @@
       if (unit === "sec" || unit === "min") return "time";
       if (unit === "reps") return "reps";
       return "reps";
+    }
+
+    function slugify(text) {
+      return String(text || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    function parseTags(text) {
+      return [...new Set(
+        String(text || "")
+          .split(",")
+          .map(tag => tag.trim().toLowerCase())
+          .filter(Boolean)
+      )];
+    }
+
+    function arraysEqual(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b)) return false;
+      if (a.length !== b.length) return false;
+      return a.every((item, index) => item === b[index]);
     }
 
     function getUnitsForType(type) {
@@ -519,6 +547,10 @@
       return matching[matching.length - 1];
     }
 
+    function getDefaultExerciseId(defaultExercise) {
+      return `default-${defaultExercise.slug}`;
+    }
+
     function getLegacyLocalData() {
       try {
         const parsed = JSON.parse(localStorage.getItem(LEGACY_LOCAL_STORAGE_KEY));
@@ -533,10 +565,17 @@
       const name = String(raw.name || `Exercise ${fallbackIndex + 1}`).trim();
       const unit = raw.unit || "reps";
       const type = raw.type || getTypeFromUnit(unit);
+      const matchingDefault = DEFAULT_EXERCISES.find(item =>
+        item.slug === raw.slug || item.name.toLowerCase() === name.toLowerCase()
+      );
+      const slug = raw.slug || matchingDefault?.slug || null;
 
       return {
-        id: raw.id || crypto.randomUUID(),
+        id: raw.id || (slug ? getDefaultExerciseId({ slug }) : crypto.randomUUID()),
+        isDefault: raw.isDefault ?? Boolean(matchingDefault),
         name,
+        slug,
+        tags: Array.isArray(raw.tags) ? raw.tags : matchingDefault?.tags || [],
         unit,
         type,
         schemaVersion: raw.schemaVersion || DATA_SCHEMA_VERSION
@@ -892,6 +931,70 @@
       await batch.commit();
     }
 
+    async function syncDefaultExercises() {
+      const batch = writeBatch(db);
+      let hasChanges = false;
+      const exercisesBySlug = new Map();
+
+      data.exercises.forEach(exercise => {
+        if (exercise.slug) exercisesBySlug.set(exercise.slug, exercise);
+      });
+
+      for (const defaultExercise of DEFAULT_EXERCISES) {
+        const existingBySlug = exercisesBySlug.get(defaultExercise.slug);
+        const existingByName = data.exercises.find(exercise =>
+          !exercise.slug && exercise.name.toLowerCase() === defaultExercise.name.toLowerCase()
+        );
+        const existing = existingBySlug || existingByName;
+
+        if (existing) {
+          const tags = Array.isArray(existing.tags) && existing.tags.length > 0 ? existing.tags : defaultExercise.tags;
+          const needsMetadataUpdate =
+            existing.isDefault !== true ||
+            existing.schemaVersion !== DATA_SCHEMA_VERSION ||
+            existing.slug !== defaultExercise.slug ||
+            !arraysEqual(existing.tags, tags);
+
+          if (needsMetadataUpdate) {
+            batch.set(doc(db, "users", currentUser.uid, "exercises", existing.id), {
+              isDefault: true,
+              schemaVersion: DATA_SCHEMA_VERSION,
+              slug: defaultExercise.slug,
+              tags,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+            hasChanges = true;
+          }
+
+          continue;
+        }
+
+        const exercise = normalizeExercise({
+          ...defaultExercise,
+          id: getDefaultExerciseId(defaultExercise),
+          isDefault: true
+        });
+
+        batch.set(doc(db, "users", currentUser.uid, "exercises", exercise.id), {
+          ...exercise,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        hasChanges = true;
+      }
+
+      if (!hasChanges) return false;
+
+      batch.set(userDocRef(), {
+        defaultsSyncedAt: serverTimestamp(),
+        schemaVersion: DATA_SCHEMA_VERSION,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await batch.commit();
+      return true;
+    }
+
     async function loadCloudData() {
       const exercisesSnap = await getDocs(query(userCollection("exercises"), orderBy("name")));
       const logsSnap = await getDocs(query(userCollection("logs"), orderBy("date")));
@@ -917,6 +1020,8 @@
       }
 
       await loadCloudData();
+      const defaultsChanged = await syncDefaultExercises();
+      if (defaultsChanged) await loadCloudData();
     }
 
     async function logEntry() {
@@ -992,6 +1097,7 @@
       const type = els.newExerciseType.value;
       const name = nameInput.value.trim();
       const unit = unitInput.value;
+      const tags = parseTags(els.newExerciseTags.value);
 
       if (!name) {
         showManageMessage("Enter an exercise name.");
@@ -1012,7 +1118,10 @@
       try {
         const exercise = {
           id: crypto.randomUUID(),
+          isDefault: false,
           name,
+          slug: null,
+          tags,
           unit,
           type,
           schemaVersion: DATA_SCHEMA_VERSION
@@ -1035,6 +1144,7 @@
         syncInputUnitToExercise();
 
         nameInput.value = "";
+        els.newExerciseTags.value = "";
         showManageMessage("Exercise added.");
       } catch (error) {
         showManageMessage("Could not save exercise.");
