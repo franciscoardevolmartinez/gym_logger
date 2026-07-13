@@ -1,4 +1,4 @@
-const CACHE_NAME = "pr-app-v4";
+const CACHE_NAME = "pr-app-v5";
 
 self.addEventListener("activate", e => {
   e.waitUntil(
@@ -12,7 +12,7 @@ self.addEventListener("install", e => {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
-      cache.addAll(["./", "./index.html", "./firebase-config.js", "./manifest.json"])
+      cache.addAll(["./", "./index.html", "./default-exercises.js", "./firebase-config.js", "./manifest.json"])
     )
   );
 });
@@ -23,6 +23,7 @@ self.addEventListener("fetch", e => {
     e.request.mode === "navigate" ||
     url.pathname.endsWith("/") ||
     url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/default-exercises.js") ||
     url.pathname.endsWith("/firebase-config.js") ||
     url.pathname.endsWith("/service-worker.js");
 

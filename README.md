@@ -23,7 +23,7 @@ This keeps future features isolated. For example, body measurements can later be
 added as `users/{uid}/measurements/{measurementId}` without changing or deleting
 existing exercise and log data.
 
-Default exercises use stable `slug` values and are synced into each user's
-account at login if missing. Tags are stored as arrays, so exercises can support
-future filtering such as `legs`, `upper body`, or `push` without changing log
-records.
+Default exercises live in `default-exercises.js`. They use stable `slug` values
+and are synced into each user's account at login if missing. Tags are stored as
+arrays, so exercises can support future filtering such as `legs`, `upper body`,
+or `push` without changing log records.
