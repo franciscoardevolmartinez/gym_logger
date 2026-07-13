@@ -322,7 +322,38 @@
     let provider = null;
     const DEFAULT_EXERCISES = [
       { slug: "squat", name: "Squat", unit: "kg", type: "weight", tags: ["legs", "barbell"] },
-      { slug: "bench", name: "Bench", unit: "kg", type: "weight", tags: ["chest", "push", "barbell"] },
+      { slug: "bench", name: "Bench Press", aliases: ["Bench"], unit: "kg", type: "weight", tags: ["chest", "upper body", "push", "barbell"] },
+      { slug: "dumbbell-bench-press", name: "Dumbbell Bench Press", unit: "kg", type: "weight", tags: ["chest", "upper body", "push", "dumbbells"] },
+      { slug: "machine-chest-press", name: "Machine Chest Press", unit: "kg", type: "weight", tags: ["chest", "upper body", "push", "machine"] },
+      { slug: "incline-bench-press", name: "Incline Bench Press", unit: "kg", type: "weight", tags: ["chest", "upper body", "push", "barbell", "incline"] },
+      { slug: "incline-dumbbell-press", name: "Incline Dumbbell Press", unit: "kg", type: "weight", tags: ["chest", "upper body", "push", "dumbbells", "incline"] },
+      { slug: "incline-machine-press", name: "Incline Machine Press", unit: "kg", type: "weight", tags: ["chest", "upper body", "push", "machine", "incline"] },
+      { slug: "barbell-curl", name: "Barbell Curl", aliases: ["Bicep Curls"], unit: "kg", type: "weight", tags: ["biceps", "arms", "pull", "barbell"] },
+      { slug: "dumbbell-curl", name: "Dumbbell Curl", unit: "kg", type: "weight", tags: ["biceps", "arms", "pull", "dumbbells"] },
+      { slug: "machine-curl", name: "Machine Curl", unit: "kg", type: "weight", tags: ["biceps", "arms", "pull", "machine"] },
+      { slug: "cable-triceps-pushdown", name: "Cable Triceps Pushdown", aliases: ["Tricep Extensions"], unit: "kg", type: "weight", tags: ["triceps", "arms", "push", "cable"] },
+      { slug: "overhead-triceps-extension", name: "Overhead Triceps Extension", unit: "kg", type: "weight", tags: ["triceps", "arms", "push", "dumbbells"] },
+      { slug: "barbell-skull-crusher", name: "Barbell Skull Crusher", aliases: ["Skull Crushers"], unit: "kg", type: "weight", tags: ["triceps", "arms", "push", "barbell"] },
+      { slug: "dumbbell-skull-crusher", name: "Dumbbell Skull Crusher", unit: "kg", type: "weight", tags: ["triceps", "arms", "push", "dumbbells"] },
+      { slug: "barbell-shoulder-press", name: "Barbell Shoulder Press", aliases: ["Shoulder Press"], unit: "kg", type: "weight", tags: ["shoulders", "upper body", "push", "barbell"] },
+      { slug: "dumbbell-shoulder-press", name: "Dumbbell Shoulder Press", unit: "kg", type: "weight", tags: ["shoulders", "upper body", "push", "dumbbells"] },
+      { slug: "machine-shoulder-press", name: "Machine Shoulder Press", unit: "kg", type: "weight", tags: ["shoulders", "upper body", "push", "machine"] },
+      { slug: "barbell-row", name: "Barbell Row", aliases: ["Rows"], unit: "kg", type: "weight", tags: ["back", "upper body", "pull", "barbell"] },
+      { slug: "dumbbell-row", name: "Dumbbell Row", unit: "kg", type: "weight", tags: ["back", "upper body", "pull", "dumbbells"] },
+      { slug: "seated-cable-row", name: "Seated Cable Row", unit: "kg", type: "weight", tags: ["back", "upper body", "pull", "cable"] },
+      { slug: "machine-row", name: "Machine Row", unit: "kg", type: "weight", tags: ["back", "upper body", "pull", "machine"] },
+      { slug: "lat-pulldown", name: "Lat Pulldown", aliases: ["Lat Pull Downs"], unit: "kg", type: "weight", tags: ["back", "lats", "upper body", "pull", "machine"] },
+      { slug: "dumbbell-lateral-raise", name: "Dumbbell Lateral Raise", aliases: ["Shoulder Raises"], unit: "kg", type: "weight", tags: ["shoulders", "upper body", "dumbbells"] },
+      { slug: "cable-lateral-raise", name: "Cable Lateral Raise", unit: "kg", type: "weight", tags: ["shoulders", "upper body", "cable"] },
+      { slug: "machine-lateral-raise", name: "Machine Lateral Raise", unit: "kg", type: "weight", tags: ["shoulders", "upper body", "machine"] },
+      { slug: "dumbbell-chest-fly", name: "Dumbbell Chest Fly", aliases: ["Chest Flies"], unit: "kg", type: "weight", tags: ["chest", "upper body", "dumbbells"] },
+      { slug: "cable-chest-fly", name: "Cable Chest Fly", unit: "kg", type: "weight", tags: ["chest", "upper body", "cable"] },
+      { slug: "machine-chest-fly", name: "Machine Chest Fly", unit: "kg", type: "weight", tags: ["chest", "upper body", "machine"] },
+      { slug: "dumbbell-triceps-kickback", name: "Dumbbell Triceps Kickback", aliases: ["Tricep Kickbacks"], unit: "kg", type: "weight", tags: ["triceps", "arms", "push", "dumbbells"] },
+      { slug: "cable-triceps-kickback", name: "Cable Triceps Kickback", unit: "kg", type: "weight", tags: ["triceps", "arms", "push", "cable"] },
+      { slug: "barbell-shrug", name: "Barbell Shrug", aliases: ["Trap Raises"], unit: "kg", type: "weight", tags: ["traps", "upper body", "barbell"] },
+      { slug: "dumbbell-shrug", name: "Dumbbell Shrug", unit: "kg", type: "weight", tags: ["traps", "upper body", "dumbbells"] },
+      { slug: "machine-shrug", name: "Machine Shrug", unit: "kg", type: "weight", tags: ["traps", "upper body", "machine"] },
       { slug: "plank", name: "Plank", unit: "sec", type: "time", tags: ["core", "bodyweight"] },
       { slug: "pull-ups", name: "Pull-ups", unit: "reps", type: "reps", tags: ["back", "pull", "bodyweight"] }
     ];
@@ -437,14 +468,6 @@
       return "reps";
     }
 
-    function slugify(text) {
-      return String(text || "")
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    }
-
     function parseTags(text) {
       return [...new Set(
         String(text || "")
@@ -551,6 +574,16 @@
       return `default-${defaultExercise.slug}`;
     }
 
+    function defaultMatchesExercise(defaultExercise, exerciseName, exerciseSlug = null) {
+      if (exerciseSlug && defaultExercise.slug === exerciseSlug) return true;
+
+      const normalizedName = String(exerciseName || "").trim().toLowerCase();
+      const names = [defaultExercise.name, ...(defaultExercise.aliases || [])]
+        .map(name => name.toLowerCase());
+
+      return names.includes(normalizedName);
+    }
+
     function getLegacyLocalData() {
       try {
         const parsed = JSON.parse(localStorage.getItem(LEGACY_LOCAL_STORAGE_KEY));
@@ -566,7 +599,7 @@
       const unit = raw.unit || "reps";
       const type = raw.type || getTypeFromUnit(unit);
       const matchingDefault = DEFAULT_EXERCISES.find(item =>
-        item.slug === raw.slug || item.name.toLowerCase() === name.toLowerCase()
+        defaultMatchesExercise(item, name, raw.slug)
       );
       const slug = raw.slug || matchingDefault?.slug || null;
 
@@ -943,7 +976,7 @@
       for (const defaultExercise of DEFAULT_EXERCISES) {
         const existingBySlug = exercisesBySlug.get(defaultExercise.slug);
         const existingByName = data.exercises.find(exercise =>
-          !exercise.slug && exercise.name.toLowerCase() === defaultExercise.name.toLowerCase()
+          !exercise.slug && defaultMatchesExercise(defaultExercise, exercise.name)
         );
         const existing = existingBySlug || existingByName;
 
