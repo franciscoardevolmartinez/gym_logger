@@ -20,7 +20,7 @@
 
     .card {
       background: white;
-      border-radius: 16px;
+      border-radius: 8px;
       padding: 16px;
       margin-bottom: 16px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.06);
@@ -40,7 +40,7 @@
     input, select, button {
       font-size: 17px;
       padding: 12px;
-      border-radius: 10px;
+      border-radius: 8px;
       border: 1px solid #d0d0d0;
       box-sizing: border-box;
       width: 100%;
@@ -64,8 +64,44 @@
       color: white;
     }
 
-    button:active {
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    button:active:not(:disabled) {
       opacity: 0.92;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .topbar h1 {
+      margin: 0;
+    }
+
+    .account {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .account button {
+      width: auto;
+      white-space: nowrap;
+    }
+
+    .account-name {
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .pr-item, .log-item, .history-item {
@@ -97,94 +133,146 @@
       margin-top: 8px;
     }
 
+    .hidden {
+      display: none;
+    }
+
     canvas {
       margin-top: 12px;
       max-height: 260px;
     }
+
+    @media (max-width: 640px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .account {
+        width: 100%;
+      }
+
+      .account button {
+        width: auto;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>PR Tracker</h1>
-
-  <div class="card">
-    <h2>Log</h2>
-
-    <div class="row">
-      <select id="exercise"></select>
+  <div class="topbar">
+    <h1>PR Tracker</h1>
+    <div id="account" class="account hidden">
+      <div id="accountName" class="account-name"></div>
+      <button id="signOutButton" class="secondary" type="button">Sign out</button>
     </div>
-
-    <div class="row">
-      <input id="value" type="number" step="any" placeholder="Value" />
-      <select id="inputUnit">
-        <option value="kg">kg</option>
-        <option value="lbs">lbs</option>
-        <option value="sec">sec</option>
-        <option value="min">min</option>
-        <option value="reps">reps</option>
-      </select>
-    </div>
-
-    <button onclick="logEntry()">+ Log</button>
-    <div id="message" class="success"></div>
   </div>
 
-  <div class="card">
-    <h2>PRs</h2>
-    <div id="prs"></div>
+  <div id="setupCard" class="card hidden">
+    <h2>Firebase setup needed</h2>
+    <div class="muted">
+      Add your Firebase web app config to firebase-config.js, then enable Google sign-in and Firestore.
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Recent</h2>
-    <div id="recent"></div>
+  <div id="authCard" class="card hidden">
+    <h2>Sign in</h2>
+    <div class="muted">
+      Your exercises and logs are saved to your own Firebase account and sync across devices.
+    </div>
+    <button id="signInButton" type="button">Continue with Google</button>
+    <div id="authMessage" class="danger-text"></div>
   </div>
 
-  <div class="card">
-    <h2>History</h2>
-    <div class="row">
-      <select id="historyExercise"></select>
-    </div>
-    <div id="historyList"></div>
+  <div id="loadingCard" class="card">
+    <h2>Loading</h2>
+    <div class="muted">Checking your account and workout data...</div>
   </div>
 
-  <div class="card">
-    <h2>Progress</h2>
-    <div class="row">
-      <select id="chartExercise"></select>
+  <main id="app" class="hidden">
+    <div class="card">
+      <h2>Log</h2>
+
+      <div class="row">
+        <select id="exercise"></select>
+      </div>
+
+      <div class="row">
+        <input id="value" type="number" step="any" placeholder="Value" />
+        <select id="inputUnit">
+          <option value="kg">kg</option>
+          <option value="lbs">lbs</option>
+          <option value="sec">sec</option>
+          <option value="min">min</option>
+          <option value="reps">reps</option>
+        </select>
+      </div>
+
+      <button id="logButton" type="button">+ Log</button>
+      <div id="message" class="success"></div>
     </div>
-    <canvas id="progressChart"></canvas>
-  </div>
 
-  <div class="card">
-    <h2>Manage Exercises</h2>
-
-    <h3 style="margin-top: 0;">Add Exercise</h3>
-    <div class="row">
-      <input id="newEx" placeholder="New exercise" />
+    <div class="card">
+      <h2>PRs</h2>
+      <div id="prs"></div>
     </div>
-    <div class="row">
-      <select id="unit">
-        <option value="kg">kg</option>
-        <option value="lbs">lbs</option>
-        <option value="sec">sec</option>
-        <option value="min">min</option>
-        <option value="reps">reps</option>
-      </select>
+
+    <div class="card">
+      <h2>Recent</h2>
+      <div id="recent"></div>
     </div>
-    <button onclick="addExercise()">Add Exercise</button>
 
-    <h3 style="margin-top: 20px;">Delete Exercise</h3>
-    <div class="row">
-      <select id="deleteExercise"></select>
+    <div class="card">
+      <h2>History</h2>
+      <div class="row">
+        <select id="historyExercise"></select>
+      </div>
+      <div id="historyList"></div>
     </div>
-    <button class="danger" onclick="deleteExercise()">Delete Exercise</button>
 
-    <div id="manageMessage" class="danger-text"></div>
-  </div>
+    <div class="card">
+      <h2>Progress</h2>
+      <div class="row">
+        <select id="chartExercise"></select>
+      </div>
+      <canvas id="progressChart"></canvas>
+    </div>
 
-  <script>
-    let chartInstance = null;
+    <div class="card">
+      <h2>Manage Exercises</h2>
 
-    let data = JSON.parse(localStorage.getItem("prdata")) || {
+      <h3 style="margin-top: 0;">Add Exercise</h3>
+      <div class="row">
+        <input id="newEx" placeholder="New exercise" />
+      </div>
+      <div class="row">
+        <select id="unit">
+          <option value="kg">kg</option>
+          <option value="lbs">lbs</option>
+          <option value="sec">sec</option>
+          <option value="min">min</option>
+          <option value="reps">reps</option>
+        </select>
+      </div>
+      <button id="addExerciseButton" type="button">Add Exercise</button>
+
+      <h3 style="margin-top: 20px;">Delete Exercise</h3>
+      <div class="row">
+        <select id="deleteExercise"></select>
+      </div>
+      <button id="deleteExerciseButton" class="danger" type="button">Delete Exercise</button>
+
+      <div id="manageMessage" class="danger-text"></div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { firebaseConfig } from "./firebase-config.js";
+
+    const DATA_SCHEMA_VERSION = 1;
+    const LEGACY_LOCAL_STORAGE_KEY = "prdata";
+    const FIREBASE_SDK_VERSION = "10.12.5";
+    let provider = null;
+    const defaultData = {
       exercises: [
         { name: "Squat", unit: "kg", type: "weight" },
         { name: "Bench", unit: "kg", type: "weight" },
@@ -194,8 +282,85 @@
       logs: []
     };
 
-    function save() {
-      localStorage.setItem("prdata", JSON.stringify(data));
+    let app = null;
+    let auth = null;
+    let db = null;
+    let currentUser = null;
+    let chartInstance = null;
+    let isSaving = false;
+    let data = { exercises: [], logs: [] };
+    let addDoc = null;
+    let collection = null;
+    let doc = null;
+    let getDoc = null;
+    let getDocs = null;
+    let getAuth = null;
+    let getFirestore = null;
+    let initializeApp = null;
+    let onAuthStateChanged = null;
+    let orderBy = null;
+    let query = null;
+    let serverTimestamp = null;
+    let setDoc = null;
+    let signInWithPopup = null;
+    let signInWithRedirect = null;
+    let signOut = null;
+    let writeBatch = null;
+
+    const els = {
+      account: document.getElementById("account"),
+      accountName: document.getElementById("accountName"),
+      addExerciseButton: document.getElementById("addExerciseButton"),
+      app: document.getElementById("app"),
+      authCard: document.getElementById("authCard"),
+      authMessage: document.getElementById("authMessage"),
+      deleteExerciseButton: document.getElementById("deleteExerciseButton"),
+      loadingCard: document.getElementById("loadingCard"),
+      logButton: document.getElementById("logButton"),
+      setupCard: document.getElementById("setupCard"),
+      signInButton: document.getElementById("signInButton"),
+      signOutButton: document.getElementById("signOutButton")
+    };
+
+    function hasFirebaseConfig(config) {
+      return Boolean(
+        config &&
+        config.apiKey &&
+        config.projectId &&
+        !config.apiKey.includes("PASTE_") &&
+        !config.projectId.includes("PASTE_")
+      );
+    }
+
+    function showOnly(section) {
+      els.loadingCard.classList.toggle("hidden", section !== "loading");
+      els.setupCard.classList.toggle("hidden", section !== "setup");
+      els.authCard.classList.toggle("hidden", section !== "auth");
+      els.app.classList.toggle("hidden", section !== "app");
+      els.account.classList.toggle("hidden", section !== "app");
+    }
+
+    function setControlsDisabled(disabled) {
+      isSaving = disabled;
+      els.addExerciseButton.disabled = disabled;
+      els.deleteExerciseButton.disabled = disabled;
+      els.logButton.disabled = disabled;
+    }
+
+    function showMessage(text) {
+      const el = document.getElementById("message");
+      el.textContent = text;
+      setTimeout(() => {
+        if (el.textContent === text) el.textContent = "";
+      }, 2000);
+    }
+
+    function showManageMessage(text) {
+      const el = document.getElementById("manageMessage");
+      el.textContent = text;
+      setTimeout(() => {
+        if (el.textContent === text) el.textContent = "";
+      }, 2500);
     }
 
     function getTypeFromUnit(unit) {
@@ -250,23 +415,92 @@
       return `${displayValue.toFixed(1)} ${unit}`;
     }
 
+    function getExerciseById(id) {
+      return data.exercises.find(e => e.id === id);
+    }
+
     function getExerciseByName(name) {
       return data.exercises.find(e => e.name === name);
     }
 
-    function getPRInternal(exerciseName) {
+    function getExerciseForLog(log) {
+      return getExerciseById(log.exerciseId) || getExerciseByName(log.exercise);
+    }
+
+    function getExerciseLabel(exercise) {
+      return exercise ? exercise.name : "Unknown exercise";
+    }
+
+    function getPRInternal(exerciseId) {
       const matching = data.logs
-        .filter(l => l.exercise === exerciseName)
+        .filter(l => l.exerciseId === exerciseId)
         .map(l => l.value);
 
       if (matching.length === 0) return null;
       return Math.max(...matching);
     }
 
-    function getLastLog(exerciseName) {
-      const matching = data.logs.filter(l => l.exercise === exerciseName);
+    function getLastLog(exerciseId) {
+      const matching = data.logs.filter(l => l.exerciseId === exerciseId);
       if (matching.length === 0) return null;
       return matching[matching.length - 1];
+    }
+
+    function getLegacyLocalData() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(LEGACY_LOCAL_STORAGE_KEY));
+        if (!parsed || !Array.isArray(parsed.exercises) || !Array.isArray(parsed.logs)) return null;
+        return parsed;
+      } catch {
+        return null;
+      }
+    }
+
+    function normalizeExercise(raw, fallbackIndex = 0) {
+      const name = String(raw.name || `Exercise ${fallbackIndex + 1}`).trim();
+      const unit = raw.unit || "reps";
+      const type = raw.type || getTypeFromUnit(unit);
+
+      return {
+        id: raw.id || crypto.randomUUID(),
+        name,
+        unit,
+        type,
+        schemaVersion: raw.schemaVersion || DATA_SCHEMA_VERSION
+      };
+    }
+
+    function normalizeLog(raw, exercises, fallbackIndex = 0) {
+      const exercise =
+        exercises.find(e => e.id === raw.exerciseId) ||
+        exercises.find(e => e.name === raw.exercise);
+
+      if (!exercise) return null;
+
+      const enteredUnit = raw.enteredUnit || exercise.unit;
+      const enteredValue = raw.enteredValue ?? fromInternal(raw.value, enteredUnit, exercise.type);
+
+      return {
+        id: raw.id || crypto.randomUUID(),
+        exerciseId: exercise.id,
+        exercise: exercise.name,
+        value: Number(raw.value),
+        date: raw.date || new Date().toISOString(),
+        enteredUnit,
+        enteredValue: Number(enteredValue),
+        schemaVersion: raw.schemaVersion || DATA_SCHEMA_VERSION,
+        sortOrder: raw.sortOrder || fallbackIndex
+      };
+    }
+
+    function normalizeData(rawData) {
+      const exercises = (rawData.exercises || []).map(normalizeExercise);
+      const logs = (rawData.logs || [])
+        .map((log, index) => normalizeLog(log, exercises, index))
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      return { exercises, logs };
     }
 
     function renderSelectOptions(selectId, keepCurrent = true) {
@@ -279,14 +513,14 @@
       }
 
       select.innerHTML = data.exercises
-        .map(e => `<option value="${e.name}">${e.name}</option>`)
+        .map(e => `<option value="${e.id}">${e.name}</option>`)
         .join("");
 
-      const exists = data.exercises.some(e => e.name === currentValue);
+      const exists = data.exercises.some(e => e.id === currentValue);
       if (keepCurrent && exists) {
         select.value = currentValue;
       } else {
-        select.value = data.exercises[0].name;
+        select.value = data.exercises[0].id;
       }
     }
 
@@ -316,8 +550,8 @@
       }
 
       prsEl.innerHTML = data.exercises.map(e => {
-        const pr = getPRInternal(e.name);
-        const last = getLastLog(e.name);
+        const pr = getPRInternal(e.id);
+        const last = getLastLog(e.id);
 
         let lastLine = `<div class="muted">Last: -</div>`;
         if (last) {
@@ -344,16 +578,16 @@
       }
 
       recentEl.innerHTML = recent.map(l => {
-        const ex = getExerciseByName(l.exercise);
+        const ex = getExerciseForLog(l);
         if (!ex) return "";
 
-        const pr = getPRInternal(l.exercise);
+        const pr = getPRInternal(l.exerciseId);
         const isPR = pr !== null && l.value === pr;
         const dateString = new Date(l.date).toLocaleDateString();
 
         return `
           <div class="log-item">
-            <strong>${l.exercise}</strong>: ${formatValue(l.value, ex.unit, ex.type)} ${isPR ? "🔥" : ""}
+            <strong>${getExerciseLabel(ex)}</strong>: ${formatValue(l.value, ex.unit, ex.type)} ${isPR ? "PR" : ""}
             <div class="muted">${dateString}</div>
           </div>
         `;
@@ -363,20 +597,20 @@
     function renderHistory() {
       const sel = document.getElementById("historyExercise");
       const list = document.getElementById("historyList");
-      const exName = sel.value;
+      const exerciseId = sel.value;
 
-      if (!exName) {
+      if (!exerciseId) {
         list.innerHTML = `<div class="muted">No exercise selected.</div>`;
         return;
       }
 
-      const ex = getExerciseByName(exName);
+      const ex = getExerciseById(exerciseId);
       const logs = data.logs
-        .filter(l => l.exercise === exName)
+        .filter(l => l.exerciseId === exerciseId)
         .slice()
         .reverse();
 
-      if (logs.length === 0) {
+      if (!ex || logs.length === 0) {
         list.innerHTML = `<div class="muted">No history yet.</div>`;
         return;
       }
@@ -391,7 +625,7 @@
 
     function renderChart() {
       const sel = document.getElementById("chartExercise");
-      const exName = sel.value;
+      const exerciseId = sel.value;
       const canvas = document.getElementById("progressChart");
 
       if (chartInstance) {
@@ -399,12 +633,12 @@
         chartInstance = null;
       }
 
-      if (!exName) return;
+      if (!exerciseId) return;
 
-      const ex = getExerciseByName(exName);
-      const logs = data.logs.filter(l => l.exercise === exName);
+      const ex = getExerciseById(exerciseId);
+      const logs = data.logs.filter(l => l.exerciseId === exerciseId);
 
-      if (logs.length === 0) {
+      if (!ex || logs.length === 0) {
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         return;
@@ -453,67 +687,192 @@
     }
 
     function syncInputUnitToExercise() {
-      const exName = document.getElementById("exercise").value;
-      const ex = getExerciseByName(exName);
+      const exerciseId = document.getElementById("exercise").value;
+      const ex = getExerciseById(exerciseId);
       if (!ex) return;
       document.getElementById("inputUnit").value = ex.unit;
     }
 
-    function showMessage(text) {
-      const el = document.getElementById("message");
-      el.textContent = text;
-      setTimeout(() => {
-        if (el.textContent === text) el.textContent = "";
-      }, 2000);
+    function userDocRef() {
+      return doc(db, "users", currentUser.uid);
     }
 
-    function showManageMessage(text) {
-      const el = document.getElementById("manageMessage");
-      el.textContent = text;
-      setTimeout(() => {
-        if (el.textContent === text) el.textContent = "";
-      }, 2500);
+    function userCollection(name) {
+      return collection(db, "users", currentUser.uid, name);
     }
 
-    function logEntry() {
-      const exName = document.getElementById("exercise").value;
+    async function loadFirebaseSdk() {
+      const [
+        appModule,
+        authModule,
+        firestoreModule
+      ] = await Promise.all([
+        import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`),
+        import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`),
+        import(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`)
+      ]);
+
+      initializeApp = appModule.initializeApp;
+      getAuth = authModule.getAuth;
+      onAuthStateChanged = authModule.onAuthStateChanged;
+      provider = new authModule.GoogleAuthProvider();
+      signInWithPopup = authModule.signInWithPopup;
+      signInWithRedirect = authModule.signInWithRedirect;
+      signOut = authModule.signOut;
+
+      addDoc = firestoreModule.addDoc;
+      collection = firestoreModule.collection;
+      doc = firestoreModule.doc;
+      getDoc = firestoreModule.getDoc;
+      getDocs = firestoreModule.getDocs;
+      getFirestore = firestoreModule.getFirestore;
+      orderBy = firestoreModule.orderBy;
+      query = firestoreModule.query;
+      serverTimestamp = firestoreModule.serverTimestamp;
+      setDoc = firestoreModule.setDoc;
+      writeBatch = firestoreModule.writeBatch;
+    }
+
+    async function ensureUserProfile() {
+      const ref = userDocRef();
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) return snap.data();
+
+      const profile = {
+        createdAt: serverTimestamp(),
+        displayName: currentUser.displayName || "",
+        email: currentUser.email || "",
+        initialized: false,
+        schemaVersion: DATA_SCHEMA_VERSION,
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(ref, profile);
+      return { ...profile, initialized: false };
+    }
+
+    async function seedData(rawData) {
+      const batch = writeBatch(db);
+      const normalized = normalizeData(rawData);
+
+      normalized.exercises.forEach(exercise => {
+        batch.set(doc(db, "users", currentUser.uid, "exercises", exercise.id), {
+          ...exercise,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      normalized.logs.forEach(log => {
+        batch.set(doc(db, "users", currentUser.uid, "logs", log.id), {
+          ...log,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      batch.set(userDocRef(), {
+        initialized: true,
+        lastMigratedAt: serverTimestamp(),
+        schemaVersion: DATA_SCHEMA_VERSION,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      await batch.commit();
+    }
+
+    async function loadCloudData() {
+      const exercisesSnap = await getDocs(query(userCollection("exercises"), orderBy("name")));
+      const logsSnap = await getDocs(query(userCollection("logs"), orderBy("date")));
+
+      data = {
+        exercises: exercisesSnap.docs.map(item => normalizeExercise({ id: item.id, ...item.data() })),
+        logs: []
+      };
+
+      data.logs = logsSnap.docs
+        .map((item, index) => normalizeLog({ id: item.id, ...item.data() }, data.exercises, index))
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    async function initializeUserData() {
+      const profile = await ensureUserProfile();
+
+      if (!profile.initialized) {
+        const legacyData = getLegacyLocalData();
+        await seedData(legacyData || defaultData);
+      }
+
+      await loadCloudData();
+    }
+
+    async function logEntry() {
+      if (isSaving || !currentUser) return;
+
+      const exerciseId = document.getElementById("exercise").value;
       const valueInput = document.getElementById("value");
       const inputUnit = document.getElementById("inputUnit").value;
       const rawValue = Number(valueInput.value);
 
-      if (!exName) return;
+      if (!exerciseId) return;
       if (!rawValue || rawValue <= 0) return;
 
-      const ex = getExerciseByName(exName);
+      const ex = getExerciseById(exerciseId);
       if (!ex) return;
 
-      const previousPR = getPRInternal(exName);
+      const previousPR = getPRInternal(exerciseId);
       const internalValue = toInternal(rawValue, inputUnit, ex.type);
+      const now = new Date().toISOString();
 
-      data.logs.push({
-        exercise: exName,
-        value: internalValue,
-        date: new Date().toISOString()
-      });
+      setControlsDisabled(true);
 
-      save();
-      render();
+      try {
+        const log = {
+          exerciseId: ex.id,
+          exercise: ex.name,
+          value: internalValue,
+          date: now,
+          enteredUnit: inputUnit,
+          enteredValue: rawValue,
+          schemaVersion: DATA_SCHEMA_VERSION,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
 
-      const newPR = getPRInternal(exName);
-      if (previousPR === null || internalValue > previousPR) {
-        showMessage("🔥 New PR!");
-      } else {
-        showMessage("Logged.");
+        const docRef = await addDoc(userCollection("logs"), log);
+        data.logs.push({
+          ...log,
+          id: docRef.id,
+          createdAt: undefined,
+          updatedAt: undefined
+        });
+
+        data.logs.sort((a, b) => new Date(a.date) - new Date(b.date));
+        render();
+
+        if (previousPR === null || internalValue > previousPR) {
+          showMessage("New PR!");
+        } else {
+          showMessage("Logged.");
+        }
+
+        valueInput.value = "";
+        valueInput.focus();
+      } catch (error) {
+        showMessage("Could not save. Check your connection.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
       }
-
-      valueInput.value = "";
-      valueInput.focus();
     }
 
-    function addExercise() {
+    async function addExercise() {
+      if (isSaving || !currentUser) return;
+
       const nameInput = document.getElementById("newEx");
       const unitInput = document.getElementById("unit");
-
       const name = nameInput.value.trim();
       const unit = unitInput.value;
 
@@ -531,62 +890,163 @@
         return;
       }
 
-      data.exercises.push({
-        name,
-        unit,
-        type: getTypeFromUnit(unit)
-      });
+      setControlsDisabled(true);
 
-      save();
-      render();
+      try {
+        const exercise = {
+          id: crypto.randomUUID(),
+          name,
+          unit,
+          type: getTypeFromUnit(unit),
+          schemaVersion: DATA_SCHEMA_VERSION
+        };
 
-      document.getElementById("exercise").value = name;
-      document.getElementById("historyExercise").value = name;
-      document.getElementById("chartExercise").value = name;
-      document.getElementById("deleteExercise").value = name;
-      syncInputUnitToExercise();
+        await setDoc(doc(db, "users", currentUser.uid, "exercises", exercise.id), {
+          ...exercise,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
 
-      nameInput.value = "";
-      showManageMessage("Exercise added.");
+        data.exercises.push(exercise);
+        data.exercises.sort((a, b) => a.name.localeCompare(b.name));
+        render();
+
+        document.getElementById("exercise").value = exercise.id;
+        document.getElementById("historyExercise").value = exercise.id;
+        document.getElementById("chartExercise").value = exercise.id;
+        document.getElementById("deleteExercise").value = exercise.id;
+        syncInputUnitToExercise();
+
+        nameInput.value = "";
+        showManageMessage("Exercise added.");
+      } catch (error) {
+        showManageMessage("Could not save exercise.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
     }
 
-    function deleteExercise() {
+    async function deleteExercise() {
+      if (isSaving || !currentUser) return;
+
       const deleteSel = document.getElementById("deleteExercise");
-      const exName = deleteSel.value;
+      const exerciseId = deleteSel.value;
 
-      if (!exName) return;
+      if (!exerciseId) return;
 
-      const ex = getExerciseByName(exName);
+      const ex = getExerciseById(exerciseId);
       if (!ex) return;
 
       const confirmed = window.confirm(
-        `Delete "${exName}" and all its logged history?`
+        `Delete "${ex.name}" and all its logged history?`
       );
 
       if (!confirmed) return;
 
-      data.exercises = data.exercises.filter(e => e.name !== exName);
-      data.logs = data.logs.filter(l => l.exercise !== exName);
+      setControlsDisabled(true);
 
-      save();
-      render();
-      showManageMessage("Exercise deleted.");
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "users", currentUser.uid, "exercises", exerciseId));
+
+        data.logs
+          .filter(log => log.exerciseId === exerciseId)
+          .forEach(log => {
+            batch.delete(doc(db, "users", currentUser.uid, "logs", log.id));
+          });
+
+        await batch.commit();
+
+        data.exercises = data.exercises.filter(item => item.id !== exerciseId);
+        data.logs = data.logs.filter(log => log.exerciseId !== exerciseId);
+
+        render();
+        showManageMessage("Exercise deleted.");
+      } catch (error) {
+        showManageMessage("Could not delete exercise.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
     }
 
-    document.getElementById("exercise").addEventListener("change", () => {
-      syncInputUnitToExercise();
-    });
+    async function handleSignIn() {
+      els.authMessage.textContent = "";
 
-    document.getElementById("historyExercise").addEventListener("change", renderHistory);
-    document.getElementById("chartExercise").addEventListener("change", renderChart);
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (error) {
+        if (["auth/popup-blocked", "auth/popup-closed-by-user", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
+          await signInWithRedirect(auth, provider);
+          return;
+        }
 
-    document.getElementById("value").addEventListener("keydown", function(e) {
-      if (e.key === "Enter") {
-        logEntry();
+        els.authMessage.textContent = "Could not sign in with Google.";
+        console.error(error);
       }
-    });
+    }
 
-    render();
+    function bindEvents() {
+      els.signInButton.addEventListener("click", handleSignIn);
+      els.signOutButton.addEventListener("click", () => signOut(auth));
+      els.logButton.addEventListener("click", logEntry);
+      els.addExerciseButton.addEventListener("click", addExercise);
+      els.deleteExerciseButton.addEventListener("click", deleteExercise);
+
+      document.getElementById("exercise").addEventListener("change", () => {
+        syncInputUnitToExercise();
+      });
+
+      document.getElementById("historyExercise").addEventListener("change", renderHistory);
+      document.getElementById("chartExercise").addEventListener("change", renderChart);
+
+      document.getElementById("value").addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+          logEntry();
+        }
+      });
+    }
+
+    async function start() {
+      bindEvents();
+
+      if (!hasFirebaseConfig(firebaseConfig)) {
+        showOnly("setup");
+        return;
+      }
+
+      await loadFirebaseSdk();
+
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+
+      onAuthStateChanged(auth, async user => {
+        currentUser = user;
+
+        if (!user) {
+          data = { exercises: [], logs: [] };
+          showOnly("auth");
+          return;
+        }
+
+        showOnly("loading");
+        els.accountName.textContent = user.displayName || user.email || "Signed in";
+
+        try {
+          await initializeUserData();
+          render();
+          showOnly("app");
+        } catch (error) {
+          showOnly("auth");
+          els.authMessage.textContent = "Could not load your cloud data.";
+          console.error(error);
+        }
+      });
+    }
+
+    start();
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
