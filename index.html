@@ -124,13 +124,15 @@
     }
 
     .tabs {
-      display: grid;
+      align-items: center;
+      display: flex;
       gap: 8px;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      justify-content: space-between;
       margin-bottom: 16px;
       max-width: 1120px;
       margin-left: auto;
       margin-right: auto;
+      position: relative;
     }
 
     .tabs button {
@@ -138,11 +140,69 @@
       color: var(--ink);
       font-size: 14px;
       padding: 10px 8px;
+      width: auto;
     }
 
     .tabs button.active {
       background: var(--ink);
       color: white;
+    }
+
+    .tabs-primary {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tabs-primary button {
+      min-width: 96px;
+    }
+
+    .more-menu-wrap {
+      position: relative;
+    }
+
+    .more-menu-button {
+      align-items: center;
+      border-radius: 999px;
+      display: inline-flex;
+      font-size: 20px;
+      height: 40px;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
+      width: 44px;
+    }
+
+    .more-menu {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 12px 30px rgba(32, 25, 18, 0.14);
+      min-width: 180px;
+      padding: 6px;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      z-index: 10;
+    }
+
+    .more-menu.hidden {
+      display: none;
+    }
+
+    .more-menu button {
+      background: white;
+      color: var(--ink);
+      display: block;
+      font-weight: 500;
+      padding: 10px 12px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .more-menu button.active {
+      background: #f0e9df;
+      color: var(--ink);
     }
 
     main, #setupCard, #authCard, #loadingCard {
@@ -255,7 +315,7 @@
       }
 
       .tabs {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 12px;
       }
     }
 
@@ -309,11 +369,18 @@
 
   <main id="app" class="hidden">
     <nav class="tabs" aria-label="App sections">
-      <button class="active" data-view-target="logView" type="button">Log</button>
-      <button data-view-target="prsView" type="button">PRs</button>
-      <button data-view-target="recentView" type="button">Recent</button>
-      <button data-view-target="historyView" type="button">History</button>
-      <button data-view-target="exercisesView" type="button">Exercises</button>
+      <div class="tabs-primary">
+        <button class="active" data-view-target="logView" type="button">Log</button>
+      </div>
+      <div class="more-menu-wrap">
+        <button id="moreMenuButton" class="secondary more-menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More sections">...</button>
+        <div id="moreMenu" class="more-menu hidden">
+          <button data-view-target="prsView" type="button">PRs</button>
+          <button data-view-target="recentView" type="button">Recent</button>
+          <button data-view-target="historyView" type="button">History</button>
+          <button data-view-target="exercisesView" type="button">Exercises</button>
+        </div>
+      </div>
     </nav>
 
     <section id="logView" class="view">
@@ -477,6 +544,8 @@
       exportExercisesButton: document.getElementById("exportExercisesButton"),
       loadingCard: document.getElementById("loadingCard"),
       logButton: document.getElementById("logButton"),
+      moreMenu: document.getElementById("moreMenu"),
+      moreMenuButton: document.getElementById("moreMenuButton"),
       newExerciseTags: document.getElementById("newExerciseTags"),
       newExerciseType: document.getElementById("newExerciseType"),
       setupCard: document.getElementById("setupCard"),
@@ -521,8 +590,20 @@
         button.classList.toggle("active", button.dataset.viewTarget === viewId);
       });
 
+      closeMoreMenu();
       if (viewId === "logView") renderChart();
       if (viewId === "historyView") renderHistory();
+    }
+
+    function toggleMoreMenu() {
+      const isOpen = !els.moreMenu.classList.contains("hidden");
+      els.moreMenu.classList.toggle("hidden", isOpen);
+      els.moreMenuButton.setAttribute("aria-expanded", String(!isOpen));
+    }
+
+    function closeMoreMenu() {
+      els.moreMenu.classList.add("hidden");
+      els.moreMenuButton.setAttribute("aria-expanded", "false");
     }
 
     function showMessage(text) {
@@ -1816,6 +1897,10 @@
       els.addExerciseButton.addEventListener("click", addExercise);
       els.deleteExerciseButton.addEventListener("click", deleteExercise);
       els.exportExercisesButton.addEventListener("click", exportSharedExercisesCsv);
+      els.moreMenuButton.addEventListener("click", event => {
+        event.stopPropagation();
+        toggleMoreMenu();
+      });
 
       document.getElementById("exercise").addEventListener("change", () => {
         syncInputUnitToExercise();
@@ -1887,6 +1972,7 @@
       document.addEventListener("click", event => {
         if (!event.target.closest(".exercise-picker")) hideExerciseMatches();
         if (!event.target.closest(".exercise-picker")) hideChartExerciseMatches();
+        if (!event.target.closest(".more-menu-wrap")) closeMoreMenu();
       });
 
       els.newExerciseType.addEventListener("change", syncNewExerciseUnitOptions);
