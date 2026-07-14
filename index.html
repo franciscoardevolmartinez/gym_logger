@@ -445,6 +445,7 @@
     let getDocs = null;
     let getAuth = null;
     let getFirestore = null;
+    let getRedirectResult = null;
     let initializeApp = null;
     let onAuthStateChanged = null;
     let orderBy = null;
@@ -1108,6 +1109,7 @@
 
       initializeApp = appModule.initializeApp;
       getAuth = authModule.getAuth;
+      getRedirectResult = authModule.getRedirectResult;
       onAuthStateChanged = authModule.onAuthStateChanged;
       provider = new authModule.GoogleAuthProvider();
       signInWithPopup = authModule.signInWithPopup;
@@ -1157,8 +1159,13 @@
     }
 
     async function checkAdminAccess() {
-      const snap = await getDoc(doc(db, "admins", currentUser.uid));
-      isAdmin = snap.exists();
+      try {
+        const snap = await getDoc(doc(db, "admins", currentUser.uid));
+        isAdmin = snap.exists();
+      } catch (error) {
+        isAdmin = false;
+        console.warn("Admin check skipped.", error);
+      }
     }
 
     function normalizeCatalogExercise(raw) {
@@ -1182,10 +1189,15 @@
     }
 
     async function loadGlobalExercises() {
-      const snap = await getDocs(query(publicCollection("globalExercises"), orderBy("name")));
-      globalExercises = snap.docs
-        .map(item => normalizeCatalogExercise({ id: item.id, ...item.data() }))
-        .filter(Boolean);
+      try {
+        const snap = await getDocs(query(publicCollection("globalExercises"), orderBy("name")));
+        globalExercises = snap.docs
+          .map(item => normalizeCatalogExercise({ id: item.id, ...item.data() }))
+          .filter(Boolean);
+      } catch (error) {
+        globalExercises = [];
+        console.warn("Shared exercises skipped.", error);
+      }
     }
 
     async function loadSuggestions() {
@@ -1194,10 +1206,15 @@
         return;
       }
 
-      const snap = await getDocs(query(publicCollection("exerciseSuggestions"), orderBy("name")));
-      suggestions = snap.docs
-        .map(item => ({ id: item.id, ...item.data() }))
-        .filter(item => item.status !== "dismissed");
+      try {
+        const snap = await getDocs(query(publicCollection("exerciseSuggestions"), orderBy("name")));
+        suggestions = snap.docs
+          .map(item => ({ id: item.id, ...item.data() }))
+          .filter(item => item.status !== "dismissed");
+      } catch (error) {
+        suggestions = [];
+        console.warn("Exercise suggestions skipped.", error);
+      }
     }
 
     async function seedData(rawData) {
@@ -1639,15 +1656,25 @@
 
     async function handleSignIn() {
       els.authMessage.textContent = "";
+      sessionStorage.setItem("pendingGoogleSignIn", "1");
 
       try {
         await signInWithPopup(auth, provider);
+        sessionStorage.removeItem("pendingGoogleSignIn");
       } catch (error) {
-        if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
-          await signInWithRedirect(auth, provider);
-          return;
+        if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/cancelled-popup-request"].includes(error.code)) {
+          try {
+            await signInWithRedirect(auth, provider);
+            return;
+          } catch (redirectError) {
+            sessionStorage.removeItem("pendingGoogleSignIn");
+            els.authMessage.textContent = `Could not start Google sign-in (${redirectError.code || "unknown error"}).`;
+            console.error(redirectError);
+            return;
+          }
         }
 
+        sessionStorage.removeItem("pendingGoogleSignIn");
         if (error.code === "auth/popup-closed-by-user") {
           els.authMessage.textContent = "Sign-in was closed before it finished.";
         } else if (error.code === "auth/unauthorized-domain") {
@@ -1656,6 +1683,31 @@
           els.authMessage.textContent = `Could not sign in with Google (${error.code || "unknown error"}).`;
         }
 
+        console.error(error);
+      }
+    }
+
+    async function handleRedirectResult() {
+      const hadPendingSignIn = sessionStorage.getItem("pendingGoogleSignIn") === "1";
+
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          sessionStorage.removeItem("pendingGoogleSignIn");
+          return;
+        }
+
+        if (hadPendingSignIn) {
+          sessionStorage.removeItem("pendingGoogleSignIn");
+          els.authMessage.textContent = "Google sign-in returned without an account. Try again, or check that this domain is authorized in Firebase.";
+        }
+      } catch (error) {
+        sessionStorage.removeItem("pendingGoogleSignIn");
+        if (error.code === "auth/unauthorized-domain") {
+          els.authMessage.textContent = `Add ${window.location.hostname} to Firebase Auth authorized domains.`;
+        } else {
+          els.authMessage.textContent = `Google sign-in failed after redirect (${error.code || "unknown error"}).`;
+        }
         console.error(error);
       }
     }
@@ -1742,6 +1794,7 @@
 
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
+      await handleRedirectResult();
 
       onAuthStateChanged(auth, async user => {
         currentUser = user;
