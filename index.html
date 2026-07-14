@@ -358,6 +358,27 @@
       border-bottom: none;
     }
 
+    .history-entry-main {
+      align-items: flex-start;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+    }
+
+    .history-actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 8px;
+    }
+
+    .history-actions button {
+      padding: 7px 10px;
+    }
+
+    .history-edit-form {
+      margin-top: 10px;
+    }
+
     .muted {
       color: var(--muted);
       font-size: 14px;
@@ -537,7 +558,11 @@
         <div class="card">
           <h2>History</h2>
           <div class="row">
-            <select id="historyExercise"></select>
+            <div class="exercise-picker">
+              <input id="historyExerciseSearch" autocomplete="off" placeholder="Search logged exercise" />
+              <select id="historyExercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
+              <div id="historyExerciseMatches" class="exercise-results hidden"></div>
+            </div>
           </div>
           <div id="historyList"></div>
         </div>
@@ -721,6 +746,8 @@
       exerciseMatches: document.getElementById("exerciseMatches"),
       exerciseSearch: document.getElementById("exerciseSearch"),
       exportExercisesButton: document.getElementById("exportExercisesButton"),
+      historyExerciseMatches: document.getElementById("historyExerciseMatches"),
+      historyExerciseSearch: document.getElementById("historyExerciseSearch"),
       loadingCard: document.getElementById("loadingCard"),
       logButton: document.getElementById("logButton"),
       moreMenu: document.getElementById("moreMenu"),
@@ -1219,7 +1246,26 @@
     }
 
     function renderHistoryExerciseOptions() {
-      renderSelectOptions("historyExercise");
+      const select = document.getElementById("historyExercise");
+      const currentValue = select.value;
+      const loggedExercises = getExercisesWithLogs();
+
+      if (loggedExercises.length === 0) {
+        select.innerHTML = `<option value="">No logged exercises yet</option>`;
+        select.value = "";
+        syncHistoryExerciseSearchToSelection();
+        hideHistoryExerciseMatches();
+        return;
+      }
+
+      select.innerHTML = loggedExercises
+        .map(e => `<option value="${e.id}">${e.name}</option>`)
+        .join("");
+
+      const exists = loggedExercises.some(e => e.id === currentValue);
+      select.value = exists ? currentValue : loggedExercises[0].id;
+      syncHistoryExerciseSearchToSelection();
+      hideHistoryExerciseMatches();
     }
 
     function renderChartExerciseOptions() {
@@ -1337,13 +1383,19 @@
       }).join("");
     }
 
+    function dateInputValue(dateValue) {
+      const date = new Date(dateValue);
+      if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+      return date.toISOString().slice(0, 10);
+    }
+
     function renderHistory() {
       const sel = document.getElementById("historyExercise");
       const list = document.getElementById("historyList");
       const exerciseId = sel.value;
 
       if (!exerciseId) {
-        list.innerHTML = `<div class="muted">No exercise selected.</div>`;
+        list.innerHTML = `<div class="muted">No logged exercises yet.</div>`;
         return;
       }
 
@@ -1358,12 +1410,39 @@
         return;
       }
 
-      list.innerHTML = logs.map(l => `
-        <div class="history-item">
-          ${formatValue(l.value, ex.unit, ex.type)}
-          <div class="muted">${new Date(l.date).toLocaleDateString()}</div>
+      list.innerHTML = logs.map(l => {
+        const enteredUnit = getUnitsForType(ex.type).includes(l.enteredUnit) ? l.enteredUnit : ex.unit;
+        const enteredValue = l.enteredValue ?? fromInternal(l.value, enteredUnit, ex.type);
+        const unitOptions = getUnitsForType(ex.type)
+          .map(unit => `<option value="${unit}" ${unit === enteredUnit ? "selected" : ""}>${unit}</option>`)
+          .join("");
+
+        return `
+        <div class="history-item" data-log-entry="${escapeHtml(l.id)}">
+          <div class="history-entry-main">
+            <div>
+              <strong>${formatValue(l.value, enteredUnit, ex.type)}</strong>
+              <div class="muted">${new Date(l.date).toLocaleDateString()}</div>
+            </div>
+            <div class="history-actions">
+              <button class="secondary" data-edit-log="${escapeHtml(l.id)}" type="button">Edit</button>
+              <button class="danger" data-delete-log="${escapeHtml(l.id)}" type="button">Delete</button>
+            </div>
+          </div>
+          <div class="history-edit-form hidden" data-log-edit-form="${escapeHtml(l.id)}">
+            <div class="row">
+              <input data-log-edit-value="${escapeHtml(l.id)}" type="number" step="any" value="${escapeHtml(enteredValue)}" />
+              <select data-log-edit-unit="${escapeHtml(l.id)}">${unitOptions}</select>
+              <input data-log-edit-date="${escapeHtml(l.id)}" type="date" value="${dateInputValue(l.date)}" />
+            </div>
+            <div class="row">
+              <button data-save-log="${escapeHtml(l.id)}" type="button">Save</button>
+              <button class="secondary" data-cancel-log-edit="${escapeHtml(l.id)}" type="button">Cancel</button>
+            </div>
+          </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
     }
 
     function renderBodyDiagram() {
@@ -1635,12 +1714,22 @@
       els.chartExerciseSearch.value = ex ? ex.name : "";
     }
 
+    function syncHistoryExerciseSearchToSelection() {
+      const exerciseId = document.getElementById("historyExercise").value;
+      const ex = getExerciseById(exerciseId);
+      els.historyExerciseSearch.value = ex ? ex.name : "";
+    }
+
     function hideExerciseMatches() {
       els.exerciseMatches.classList.add("hidden");
     }
 
     function hideChartExerciseMatches() {
       els.chartExerciseMatches.classList.add("hidden");
+    }
+
+    function hideHistoryExerciseMatches() {
+      els.historyExerciseMatches.classList.add("hidden");
     }
 
     function renderExerciseMatches() {
@@ -1707,6 +1796,35 @@
       els.chartExerciseSearch.value = ex.name;
       hideChartExerciseMatches();
       renderChart();
+    }
+
+    function renderHistoryExerciseMatches() {
+      const queryText = els.historyExerciseSearch.value;
+      const matches = getLoggedExerciseMatches(queryText);
+
+      if (matches.length === 0) {
+        els.historyExerciseMatches.innerHTML = `<div class="exercise-match muted">No logged exercises match.</div>`;
+        els.historyExerciseMatches.classList.remove("hidden");
+        return;
+      }
+
+      els.historyExerciseMatches.innerHTML = matches.map(exercise => `
+        <button class="exercise-match" data-history-exercise-match="${escapeHtml(exercise.id)}" type="button">
+          ${escapeHtml(exercise.name)}
+          ${exercise.tags?.length ? `<div class="muted">${escapeHtml(exercise.tags.join(", "))}</div>` : ""}
+        </button>
+      `).join("");
+
+      els.historyExerciseMatches.classList.remove("hidden");
+    }
+
+    function selectHistoryExercise(exerciseId) {
+      const ex = getExerciseById(exerciseId);
+      if (!ex) return;
+      document.getElementById("historyExercise").value = ex.id;
+      els.historyExerciseSearch.value = ex.name;
+      hideHistoryExerciseMatches();
+      renderHistory();
     }
 
     function prefillCreateExercise(name) {
@@ -2086,6 +2204,99 @@
       }
     }
 
+    function toggleLogEdit(logId, show) {
+      const form = document.querySelector(`[data-log-edit-form="${CSS.escape(logId)}"]`);
+      if (!form) return;
+      form.classList.toggle("hidden", !show);
+    }
+
+    function getEditedLogDate(dateValue, fallbackDate) {
+      if (!dateValue) return fallbackDate;
+      const fallback = new Date(fallbackDate);
+      const time = Number.isNaN(fallback.getTime())
+        ? "12:00:00.000"
+        : fallback.toISOString().slice(11, 23);
+      return new Date(`${dateValue}T${time}`).toISOString();
+    }
+
+    async function updateLogEntry(logId) {
+      if (isSaving || !currentUser) return;
+
+      const log = data.logs.find(item => item.id === logId);
+      if (!log) return;
+
+      const ex = getExerciseForLog(log);
+      if (!ex) return;
+
+      const valueInput = document.querySelector(`[data-log-edit-value="${CSS.escape(logId)}"]`);
+      const unitInput = document.querySelector(`[data-log-edit-unit="${CSS.escape(logId)}"]`);
+      const dateInput = document.querySelector(`[data-log-edit-date="${CSS.escape(logId)}"]`);
+      const rawValue = Number(valueInput?.value);
+      const unit = unitInput?.value;
+
+      if (!rawValue || rawValue <= 0 || !unit) return;
+      if (!getUnitsForType(ex.type).includes(unit)) return;
+
+      const updatedLog = {
+        date: getEditedLogDate(dateInput?.value, log.date),
+        enteredUnit: unit,
+        enteredValue: rawValue,
+        exercise: ex.name,
+        exerciseId: ex.id,
+        schemaVersion: DATA_SCHEMA_VERSION,
+        value: toInternal(rawValue, unit, ex.type),
+        updatedAt: serverTimestamp()
+      };
+
+      setControlsDisabled(true);
+
+      try {
+        await setDoc(doc(db, "users", currentUser.uid, "logs", log.id), updatedLog, { merge: true });
+        Object.assign(log, {
+          ...updatedLog,
+          updatedAt: undefined
+        });
+        data.logs.sort((a, b) => new Date(a.date) - new Date(b.date));
+        render();
+        showMessage("Log updated.");
+      } catch (error) {
+        showMessage("Could not update log.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    async function deleteLogEntry(logId) {
+      if (isSaving || !currentUser) return;
+
+      const log = data.logs.find(item => item.id === logId);
+      if (!log) return;
+
+      const ex = getExerciseForLog(log);
+      const confirmed = window.confirm(
+        `Delete this ${ex ? ex.name : "exercise"} log?`
+      );
+      if (!confirmed) return;
+
+      setControlsDisabled(true);
+
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "users", currentUser.uid, "logs", log.id));
+        await batch.commit();
+
+        data.logs = data.logs.filter(item => item.id !== log.id);
+        render();
+        showMessage("Log deleted.");
+      } catch (error) {
+        showMessage("Could not delete log.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
     function selectBodyMetric(metricId) {
       const metric = getBodyMetric(metricId);
       selectedBodyMetricId = metric.id;
@@ -2216,8 +2427,6 @@
         render();
 
         document.getElementById("exercise").value = exercise.id;
-        document.getElementById("historyExercise").value = exercise.id;
-        document.getElementById("chartExercise").value = exercise.id;
         document.getElementById("deleteExercise").value = exercise.id;
         els.exerciseSearch.value = exercise.name;
         syncInputUnitToExercise();
@@ -2506,9 +2715,51 @@
         if (exerciseId) selectChartExercise(exerciseId);
       });
 
+      els.historyExerciseSearch.addEventListener("input", () => {
+        const exact = findExactLoggedExercise(els.historyExerciseSearch.value);
+        document.getElementById("historyExercise").value = exact ? exact.id : "";
+        renderHistoryExerciseMatches();
+        if (exact) renderHistory();
+      });
+
+      els.historyExerciseSearch.addEventListener("focus", () => {
+        hideExerciseMatches();
+        hideChartExerciseMatches();
+        renderHistoryExerciseMatches();
+      });
+
+      els.historyExerciseSearch.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+
+        event.preventDefault();
+        const exact = findExactLoggedExercise(els.historyExerciseSearch.value);
+        const firstMatch = getLoggedExerciseMatches(els.historyExerciseSearch.value)[0];
+        const selected = exact || firstMatch;
+
+        if (selected) selectHistoryExercise(selected.id);
+      });
+
+      els.historyExerciseMatches.addEventListener("click", event => {
+        const exerciseId = event.target.closest("[data-history-exercise-match]")?.dataset.historyExerciseMatch;
+        if (exerciseId) selectHistoryExercise(exerciseId);
+      });
+
+      document.getElementById("historyList").addEventListener("click", event => {
+        const editId = event.target.closest("[data-edit-log]")?.dataset.editLog;
+        const cancelId = event.target.closest("[data-cancel-log-edit]")?.dataset.cancelLogEdit;
+        const saveId = event.target.closest("[data-save-log]")?.dataset.saveLog;
+        const deleteId = event.target.closest("[data-delete-log]")?.dataset.deleteLog;
+
+        if (editId) toggleLogEdit(editId, true);
+        if (cancelId) toggleLogEdit(cancelId, false);
+        if (saveId) updateLogEntry(saveId);
+        if (deleteId) deleteLogEntry(deleteId);
+      });
+
       document.addEventListener("click", event => {
         if (!event.target.closest(".exercise-picker")) hideExerciseMatches();
         if (!event.target.closest(".exercise-picker")) hideChartExerciseMatches();
+        if (!event.target.closest(".exercise-picker")) hideHistoryExerciseMatches();
         if (!event.target.closest(".more-menu-wrap")) closeMoreMenu();
         if (!event.target.closest(".more-menu-wrap")) closeBodyMoreMenu();
       });
@@ -2541,7 +2792,10 @@
         if (dismissId) dismissSuggestion(dismissId);
       });
 
-      document.getElementById("historyExercise").addEventListener("change", renderHistory);
+      document.getElementById("historyExercise").addEventListener("change", () => {
+        syncHistoryExerciseSearchToSelection();
+        renderHistory();
+      });
       document.getElementById("chartExercise").addEventListener("change", () => {
         syncChartExerciseSearchToSelection();
         renderChart();
