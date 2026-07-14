@@ -1,4 +1,4 @@
-const CACHE_NAME = "pr-app-v13";
+const CACHE_NAME = "pr-app-v14";
 
 self.addEventListener("activate", e => {
   e.waitUntil(

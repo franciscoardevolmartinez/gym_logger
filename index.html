@@ -281,29 +281,67 @@
     }
 
     .body-diagram {
-      display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
       margin: 12px 0;
     }
 
-    .body-diagram button {
-      background: white;
+    .body-diagram svg {
+      display: block;
+      height: auto;
+      max-height: 520px;
+      width: 100%;
+    }
+
+    .body-zone {
+      cursor: pointer;
+      fill: rgba(25, 103, 210, 0.08);
+      stroke: rgba(25, 103, 210, 0.35);
+      stroke-width: 1.5;
+      transition: fill 120ms ease, stroke 120ms ease;
+    }
+
+    .body-zone:hover {
+      fill: rgba(25, 103, 210, 0.18);
+    }
+
+    .body-zone.active {
+      fill: rgba(25, 103, 210, 0.35);
+      stroke: var(--primary-dark);
+    }
+
+    .body-label {
+      fill: var(--ink);
+      font-size: 9px;
+      font-weight: 700;
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .body-side-label {
+      fill: var(--muted);
+      font-size: 7px;
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .body-outline {
+      fill: #f7eadb;
+      stroke: #b79f86;
+      stroke-width: 2;
+    }
+
+    .body-head {
+      fill: #f7eadb;
+      stroke: #b79f86;
+      stroke-width: 2;
+    }
+
+    .body-progress-empty {
       border: 1px solid var(--line);
+      border-radius: 8px;
       color: var(--ink);
       font-size: 14px;
-      min-height: 48px;
-      padding: 8px;
-    }
-
-    .body-diagram button.active {
-      background: var(--ink);
-      border-color: var(--ink);
-      color: white;
-    }
-
-    .body-diagram .wide {
-      grid-column: span 2;
+      margin-top: 12px;
+      padding: 12px;
     }
 
     .selected-body-metric {
@@ -389,7 +427,10 @@
       }
 
       #bodyLogView:not(.hidden) {
-        max-width: 760px;
+        align-items: start;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
       }
     }
   </style>
@@ -432,9 +473,7 @@
 
     <section id="liftsMode" class="app-mode-section">
       <nav class="tabs" aria-label="Lift sections">
-        <div class="tabs-primary">
-          <button class="active" data-view-target="logView" type="button">Log</button>
-        </div>
+        <div></div>
         <div class="more-menu-wrap">
           <button id="moreMenuButton" class="secondary more-menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More lift sections">...</button>
           <div id="moreMenu" class="more-menu hidden">
@@ -544,9 +583,7 @@
 
     <section id="bodyMode" class="app-mode-section hidden">
       <nav class="tabs" aria-label="Body sections">
-        <div class="tabs-primary">
-          <button class="active" data-body-view-target="bodyLogView" type="button">Log</button>
-        </div>
+        <div></div>
         <div class="more-menu-wrap">
           <button id="bodyMoreMenuButton" class="secondary more-menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More body sections">...</button>
           <div id="bodyMoreMenu" class="more-menu hidden">
@@ -566,6 +603,12 @@
           </div>
           <button id="bodyLogButton" type="button">+ Log Body Measurement</button>
           <div id="bodyMessage" class="success"></div>
+        </div>
+
+        <div class="card">
+          <h2>Progress</h2>
+          <canvas id="bodyProgressChart"></canvas>
+          <div id="bodyProgressEmpty" class="body-progress-empty hidden">No measurements yet.</div>
         </div>
       </section>
 
@@ -624,6 +667,7 @@
 
     let app = null;
     let auth = null;
+    let bodyChartInstance = null;
     let db = null;
     let currentUser = null;
     let chartInstance = null;
@@ -667,6 +711,8 @@
       bodyMessage: document.getElementById("bodyMessage"),
       bodyMoreMenu: document.getElementById("bodyMoreMenu"),
       bodyMoreMenuButton: document.getElementById("bodyMoreMenuButton"),
+      bodyProgressChart: document.getElementById("bodyProgressChart"),
+      bodyProgressEmpty: document.getElementById("bodyProgressEmpty"),
       bodyUnit: document.getElementById("bodyUnit"),
       bodyValue: document.getElementById("bodyValue"),
       chartExerciseMatches: document.getElementById("chartExerciseMatches"),
@@ -732,8 +778,14 @@
 
       closeMoreMenu();
       closeBodyMoreMenu();
-      if (modeId === "bodyMode") renderBody();
-      if (modeId === "liftsMode") renderChart();
+      if (modeId === "bodyMode") {
+        showBodyView("bodyLogView");
+        renderBody();
+      }
+      if (modeId === "liftsMode") {
+        showView("logView");
+        renderChart();
+      }
     }
 
     function showView(viewId) {
@@ -1315,11 +1367,63 @@
     }
 
     function renderBodyDiagram() {
-      els.bodyDiagram.innerHTML = BODY_METRICS.map(metric => `
-        <button class="${metric.wide ? "wide" : ""} ${metric.id === selectedBodyMetricId ? "active" : ""}" data-body-metric="${metric.id}" type="button">
-          ${escapeHtml(metric.name)}
-        </button>
-      `).join("");
+      const active = id => id === selectedBodyMetricId ? "active" : "";
+      els.bodyDiagram.innerHTML = `
+        <svg viewBox="0 0 220 420" role="img" aria-label="Tap a body measurement">
+          <circle class="body-head" cx="110" cy="36" r="24"></circle>
+          <path class="body-outline" d="M78 78 C82 66 138 66 142 78 L154 137 L144 215 L134 380 L116 380 L110 250 L104 380 L86 380 L76 215 L66 137 Z"></path>
+          <path class="body-outline" d="M73 87 L43 171 L35 262 L48 264 L61 178 L84 112 Z"></path>
+          <path class="body-outline" d="M147 87 L177 171 L185 262 L172 264 L159 178 L136 112 Z"></path>
+
+          <rect class="body-zone ${active("weight")}" data-body-metric="weight" x="82" y="8" width="56" height="30" rx="14"></rect>
+          <text class="body-label" x="110" y="27">Weight</text>
+
+          <rect class="body-zone ${active("neck")}" data-body-metric="neck" x="91" y="59" width="38" height="18" rx="8"></rect>
+          <text class="body-label" x="110" y="72">Neck</text>
+
+          <rect class="body-zone ${active("shoulders")}" data-body-metric="shoulders" x="60" y="78" width="100" height="26" rx="12"></rect>
+          <text class="body-label" x="110" y="95">Shoulders</text>
+
+          <rect class="body-zone ${active("chest")}" data-body-metric="chest" x="77" y="108" width="66" height="42" rx="16"></rect>
+          <text class="body-label" x="110" y="133">Chest</text>
+
+          <rect class="body-zone ${active("waist")}" data-body-metric="waist" x="82" y="158" width="56" height="34" rx="14"></rect>
+          <text class="body-label" x="110" y="179">Waist</text>
+
+          <rect class="body-zone ${active("hips")}" data-body-metric="hips" x="76" y="203" width="68" height="42" rx="18"></rect>
+          <text class="body-label" x="110" y="228">Hips</text>
+
+          <rect class="body-zone ${active("arm-left")}" data-body-metric="arm-left" x="47" y="104" width="28" height="80" rx="14"></rect>
+          <text class="body-side-label" x="61" y="148">Arm L</text>
+
+          <rect class="body-zone ${active("arm-right")}" data-body-metric="arm-right" x="145" y="104" width="28" height="80" rx="14"></rect>
+          <text class="body-side-label" x="159" y="148">Arm R</text>
+
+          <rect class="body-zone ${active("forearm-left")}" data-body-metric="forearm-left" x="35" y="187" width="25" height="70" rx="12"></rect>
+          <text class="body-side-label" x="48" y="225">Forearm L</text>
+
+          <rect class="body-zone ${active("forearm-right")}" data-body-metric="forearm-right" x="160" y="187" width="25" height="70" rx="12"></rect>
+          <text class="body-side-label" x="173" y="225">Forearm R</text>
+
+          <rect class="body-zone ${active("wrist-left")}" data-body-metric="wrist-left" x="31" y="262" width="27" height="22" rx="9"></rect>
+          <text class="body-side-label" x="45" y="277">Wrist L</text>
+
+          <rect class="body-zone ${active("wrist-right")}" data-body-metric="wrist-right" x="162" y="262" width="27" height="22" rx="9"></rect>
+          <text class="body-side-label" x="176" y="277">Wrist R</text>
+
+          <rect class="body-zone ${active("thigh-left")}" data-body-metric="thigh-left" x="81" y="244" width="29" height="82" rx="14"></rect>
+          <text class="body-side-label" x="96" y="289">Thigh L</text>
+
+          <rect class="body-zone ${active("thigh-right")}" data-body-metric="thigh-right" x="110" y="244" width="29" height="82" rx="14"></rect>
+          <text class="body-side-label" x="125" y="289">Thigh R</text>
+
+          <rect class="body-zone ${active("calf-left")}" data-body-metric="calf-left" x="83" y="325" width="25" height="62" rx="12"></rect>
+          <text class="body-side-label" x="96" y="359">Calf L</text>
+
+          <rect class="body-zone ${active("calf-right")}" data-body-metric="calf-right" x="112" y="325" width="25" height="62" rx="12"></rect>
+          <text class="body-side-label" x="125" y="359">Calf R</text>
+        </svg>
+      `;
     }
 
     function renderBodyHistoryOptions() {
@@ -1353,6 +1457,61 @@
       `).join("");
     }
 
+    async function renderBodyChart() {
+      const metric = getBodyMetric(selectedBodyMetricId);
+      const canvas = els.bodyProgressChart;
+      const logs = data.measurements.filter(item => item.metricId === metric.id);
+
+      if (bodyChartInstance) {
+        bodyChartInstance.destroy();
+        bodyChartInstance = null;
+      }
+
+      if (logs.length === 0) {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        els.bodyProgressEmpty.textContent = `No ${metric.name.toLowerCase()} measurements yet.`;
+        els.bodyProgressEmpty.classList.remove("hidden");
+        return;
+      }
+
+      els.bodyProgressEmpty.classList.add("hidden");
+
+      try {
+        await loadChartJs();
+      } catch (error) {
+        console.error(error);
+        return;
+      }
+
+      bodyChartInstance = new window.Chart(canvas, {
+        type: "line",
+        data: {
+          labels: logs.map(item => new Date(item.date).toLocaleDateString()),
+          datasets: [{
+            label: `${metric.name} (${metric.unit})`,
+            data: logs.map(item => Number(fromBodyInternal(item.value, metric.unit, metric.kind).toFixed(2))),
+            tension: 0.25,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: true
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false
+            }
+          }
+        }
+      });
+    }
+
     function renderBody() {
       const metric = getBodyMetric(selectedBodyMetricId);
       els.bodyMetricLabel.textContent = metric.name;
@@ -1360,6 +1519,7 @@
       updateBodyUnitSelect(els.bodyUnit.value);
       renderBodyHistoryOptions();
       renderBodyHistory();
+      renderBodyChart();
     }
 
     function loadChartJs() {
