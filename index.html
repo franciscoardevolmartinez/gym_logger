@@ -148,6 +148,24 @@
       color: white;
     }
 
+    .mode-tabs {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 0 auto 12px auto;
+      max-width: 1120px;
+    }
+
+    .mode-tabs button {
+      background: #e7e0d6;
+      color: var(--ink);
+    }
+
+    .mode-tabs button.active {
+      background: var(--ink);
+      color: white;
+    }
+
     .tabs-primary {
       display: flex;
       gap: 8px;
@@ -215,6 +233,10 @@
       display: none;
     }
 
+    .app-mode-section.hidden, .body-view.hidden {
+      display: none;
+    }
+
     .exercise-picker {
       position: relative;
     }
@@ -256,6 +278,37 @@
 
     .exercise-match:hover {
       background: #f7f2ea;
+    }
+
+    .body-diagram {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin: 12px 0;
+    }
+
+    .body-diagram button {
+      background: white;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 14px;
+      min-height: 48px;
+      padding: 8px;
+    }
+
+    .body-diagram button.active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: white;
+    }
+
+    .body-diagram .wide {
+      grid-column: span 2;
+    }
+
+    .selected-body-metric {
+      font-weight: 700;
+      margin-bottom: 10px;
     }
 
     .pr-item, .log-item, .history-item, .suggestion-item {
@@ -334,6 +387,10 @@
       #exercisesView .card {
         max-width: 760px;
       }
+
+      #bodyLogView:not(.hidden) {
+        max-width: 760px;
+      }
     }
   </style>
 </head>
@@ -368,114 +425,159 @@
   </div>
 
   <main id="app" class="hidden">
-    <nav class="tabs" aria-label="App sections">
-      <div class="tabs-primary">
-        <button class="active" data-view-target="logView" type="button">Log</button>
-      </div>
-      <div class="more-menu-wrap">
-        <button id="moreMenuButton" class="secondary more-menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More sections">...</button>
-        <div id="moreMenu" class="more-menu hidden">
-          <button data-view-target="prsView" type="button">PRs</button>
-          <button data-view-target="recentView" type="button">Recent</button>
-          <button data-view-target="historyView" type="button">History</button>
-          <button data-view-target="exercisesView" type="button">Exercises</button>
-        </div>
-      </div>
+    <nav class="mode-tabs" aria-label="Tracker mode">
+      <button class="active" data-mode-target="liftsMode" type="button">Lifts</button>
+      <button data-mode-target="bodyMode" type="button">Body</button>
     </nav>
 
-    <section id="logView" class="view">
-      <div class="card">
-        <h2>Log</h2>
-
-        <div class="row">
-          <div class="exercise-picker">
-            <input id="exerciseSearch" autocomplete="off" placeholder="Search exercise or tag" />
-            <select id="exercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
-            <div id="exerciseMatches" class="exercise-results hidden"></div>
+    <section id="liftsMode" class="app-mode-section">
+      <nav class="tabs" aria-label="Lift sections">
+        <div class="tabs-primary">
+          <button class="active" data-view-target="logView" type="button">Log</button>
+        </div>
+        <div class="more-menu-wrap">
+          <button id="moreMenuButton" class="secondary more-menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More lift sections">...</button>
+          <div id="moreMenu" class="more-menu hidden">
+            <button data-view-target="prsView" type="button">PRs</button>
+            <button data-view-target="recentView" type="button">Recent</button>
+            <button data-view-target="historyView" type="button">History</button>
+            <button data-view-target="exercisesView" type="button">Exercises</button>
           </div>
         </div>
+      </nav>
 
-        <div class="row">
-          <input id="value" type="number" step="any" placeholder="Value" />
-          <select id="inputUnit"></select>
+      <section id="logView" class="view lift-view">
+        <div class="card">
+          <h2>Log</h2>
+
+          <div class="row">
+            <div class="exercise-picker">
+              <input id="exerciseSearch" autocomplete="off" placeholder="Search exercise or tag" />
+              <select id="exercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
+              <div id="exerciseMatches" class="exercise-results hidden"></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <input id="value" type="number" step="any" placeholder="Value" />
+            <select id="inputUnit"></select>
+          </div>
+
+          <button id="logButton" type="button">+ Log</button>
+          <div id="message" class="success"></div>
         </div>
 
-        <button id="logButton" type="button">+ Log</button>
-        <div id="message" class="success"></div>
-      </div>
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="row">
+            <div class="exercise-picker">
+              <input id="chartExerciseSearch" autocomplete="off" placeholder="Search logged exercise" />
+              <select id="chartExercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
+              <div id="chartExerciseMatches" class="exercise-results hidden"></div>
+            </div>
+          </div>
+          <canvas id="progressChart"></canvas>
+        </div>
+      </section>
 
-      <div class="card">
-        <h2>Progress</h2>
-        <div class="row">
-          <div class="exercise-picker">
-            <input id="chartExerciseSearch" autocomplete="off" placeholder="Search logged exercise" />
-            <select id="chartExercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
-            <div id="chartExerciseMatches" class="exercise-results hidden"></div>
+      <section id="prsView" class="view lift-view hidden">
+        <div class="card">
+          <h2>PRs</h2>
+          <div id="prs"></div>
+        </div>
+      </section>
+
+      <section id="recentView" class="view lift-view hidden">
+        <div class="card">
+          <h2>Recent</h2>
+          <div id="recent"></div>
+        </div>
+      </section>
+
+      <section id="historyView" class="view lift-view hidden">
+        <div class="card">
+          <h2>History</h2>
+          <div class="row">
+            <select id="historyExercise"></select>
+          </div>
+          <div id="historyList"></div>
+        </div>
+      </section>
+
+      <section id="exercisesView" class="view lift-view hidden">
+        <div class="card">
+          <h2>Manage Exercises</h2>
+
+          <h3 style="margin-top: 0;">Add Exercise</h3>
+          <div class="row">
+            <input id="newEx" placeholder="New exercise" />
+          </div>
+          <div class="row">
+            <select id="newExerciseType">
+              <option value="weight">Weight</option>
+              <option value="time">Time</option>
+              <option value="reps">Reps</option>
+            </select>
+            <select id="unit"></select>
+          </div>
+          <div class="row">
+            <input id="newExerciseTags" placeholder="Tags, comma separated" />
+          </div>
+          <button id="addExerciseButton" type="button">Add Exercise</button>
+
+          <div id="adminTools" class="hidden">
+            <h3 style="margin-top: 20px;">Shared Exercise Review</h3>
+            <button id="exportExercisesButton" class="secondary" type="button">Export Shared CSV</button>
+            <div id="suggestions"></div>
+          </div>
+
+          <h3 style="margin-top: 20px;">Delete Exercise</h3>
+          <div class="row">
+            <select id="deleteExercise"></select>
+          </div>
+          <button id="deleteExerciseButton" class="danger" type="button">Delete Exercise</button>
+
+          <div id="manageMessage" class="danger-text"></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="bodyMode" class="app-mode-section hidden">
+      <nav class="tabs" aria-label="Body sections">
+        <div class="tabs-primary">
+          <button class="active" data-body-view-target="bodyLogView" type="button">Log</button>
+        </div>
+        <div class="more-menu-wrap">
+          <button id="bodyMoreMenuButton" class="secondary more-menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More body sections">...</button>
+          <div id="bodyMoreMenu" class="more-menu hidden">
+            <button data-body-view-target="bodyHistoryView" type="button">History</button>
           </div>
         </div>
-        <canvas id="progressChart"></canvas>
-      </div>
-    </section>
+      </nav>
 
-    <section id="prsView" class="view hidden">
-      <div class="card">
-        <h2>PRs</h2>
-        <div id="prs"></div>
-      </div>
-    </section>
-
-    <section id="recentView" class="view hidden">
-      <div class="card">
-        <h2>Recent</h2>
-        <div id="recent"></div>
-      </div>
-    </section>
-
-    <section id="historyView" class="view hidden">
-      <div class="card">
-        <h2>History</h2>
-        <div class="row">
-          <select id="historyExercise"></select>
+      <section id="bodyLogView" class="body-view">
+        <div class="card">
+          <h2>Body</h2>
+          <div id="selectedBodyMetric" class="selected-body-metric"></div>
+          <div id="bodyDiagram" class="body-diagram"></div>
+          <div class="row">
+            <input id="bodyValue" type="number" step="any" placeholder="Value" />
+            <select id="bodyUnit"></select>
+          </div>
+          <button id="bodyLogButton" type="button">+ Log Body Measurement</button>
+          <div id="bodyMessage" class="success"></div>
         </div>
-        <div id="historyList"></div>
-      </div>
-    </section>
+      </section>
 
-    <section id="exercisesView" class="view hidden">
-      <div class="card">
-        <h2>Manage Exercises</h2>
-
-        <h3 style="margin-top: 0;">Add Exercise</h3>
-        <div class="row">
-          <input id="newEx" placeholder="New exercise" />
+      <section id="bodyHistoryView" class="body-view hidden">
+        <div class="card">
+          <h2>Body History</h2>
+          <div class="row">
+            <select id="bodyHistoryMetric"></select>
+          </div>
+          <div id="bodyHistoryList"></div>
         </div>
-        <div class="row">
-          <select id="newExerciseType">
-            <option value="weight">Weight</option>
-            <option value="time">Time</option>
-            <option value="reps">Reps</option>
-          </select>
-          <select id="unit"></select>
-        </div>
-        <div class="row">
-          <input id="newExerciseTags" placeholder="Tags, comma separated" />
-        </div>
-        <button id="addExerciseButton" type="button">Add Exercise</button>
-
-        <div id="adminTools" class="hidden">
-          <h3 style="margin-top: 20px;">Shared Exercise Review</h3>
-          <button id="exportExercisesButton" class="secondary" type="button">Export Shared CSV</button>
-          <div id="suggestions"></div>
-        </div>
-
-        <h3 style="margin-top: 20px;">Delete Exercise</h3>
-        <div class="row">
-          <select id="deleteExercise"></select>
-        </div>
-        <button id="deleteExerciseButton" class="danger" type="button">Delete Exercise</button>
-
-        <div id="manageMessage" class="danger-text"></div>
-      </div>
+      </section>
     </section>
   </main>
 
@@ -492,6 +594,28 @@
       time: ["sec", "min"],
       reps: ["reps"]
     };
+    const BODY_UNITS_BY_KIND = {
+      weight: ["kg", "lbs"],
+      circumference: ["cm", "in"]
+    };
+    const BODY_METRICS = [
+      { id: "weight", name: "Weight", kind: "weight", unit: "kg", wide: true },
+      { id: "neck", name: "Neck", kind: "circumference", unit: "cm" },
+      { id: "shoulders", name: "Shoulders", kind: "circumference", unit: "cm", wide: true },
+      { id: "chest", name: "Chest", kind: "circumference", unit: "cm", wide: true },
+      { id: "waist", name: "Waist", kind: "circumference", unit: "cm", wide: true },
+      { id: "hips", name: "Hips", kind: "circumference", unit: "cm", wide: true },
+      { id: "arm-left", name: "Arm L", kind: "circumference", unit: "cm" },
+      { id: "arm-right", name: "Arm R", kind: "circumference", unit: "cm" },
+      { id: "forearm-left", name: "Forearm L", kind: "circumference", unit: "cm" },
+      { id: "forearm-right", name: "Forearm R", kind: "circumference", unit: "cm" },
+      { id: "wrist-left", name: "Wrist L", kind: "circumference", unit: "cm" },
+      { id: "wrist-right", name: "Wrist R", kind: "circumference", unit: "cm" },
+      { id: "thigh-left", name: "Thigh L", kind: "circumference", unit: "cm" },
+      { id: "thigh-right", name: "Thigh R", kind: "circumference", unit: "cm" },
+      { id: "calf-left", name: "Calf L", kind: "circumference", unit: "cm" },
+      { id: "calf-right", name: "Calf R", kind: "circumference", unit: "cm" }
+    ];
     let provider = null;
     const defaultData = {
       exercises: DEFAULT_EXERCISES,
@@ -507,8 +631,9 @@
     let globalExercises = [];
     let isSaving = false;
     let isAdmin = false;
+    let selectedBodyMetricId = "weight";
     let suggestions = [];
-    let data = { exercises: [], logs: [] };
+    let data = { exercises: [], logs: [], measurements: [] };
     let addDoc = null;
     let collection = null;
     let doc = null;
@@ -536,6 +661,14 @@
       app: document.getElementById("app"),
       authCard: document.getElementById("authCard"),
       authMessage: document.getElementById("authMessage"),
+      bodyHistoryList: document.getElementById("bodyHistoryList"),
+      bodyHistoryMetric: document.getElementById("bodyHistoryMetric"),
+      bodyLogButton: document.getElementById("bodyLogButton"),
+      bodyMessage: document.getElementById("bodyMessage"),
+      bodyMoreMenu: document.getElementById("bodyMoreMenu"),
+      bodyMoreMenuButton: document.getElementById("bodyMoreMenuButton"),
+      bodyUnit: document.getElementById("bodyUnit"),
+      bodyValue: document.getElementById("bodyValue"),
       chartExerciseMatches: document.getElementById("chartExerciseMatches"),
       chartExerciseSearch: document.getElementById("chartExerciseSearch"),
       deleteExerciseButton: document.getElementById("deleteExerciseButton"),
@@ -552,8 +685,14 @@
       signInButton: document.getElementById("signInButton"),
       signOutButton: document.getElementById("signOutButton"),
       suggestions: document.getElementById("suggestions"),
+      appModeButtons: document.querySelectorAll("[data-mode-target]"),
+      appModeSections: document.querySelectorAll(".app-mode-section"),
+      bodyDiagram: document.getElementById("bodyDiagram"),
+      bodyMetricLabel: document.getElementById("selectedBodyMetric"),
+      bodyTabButtons: document.querySelectorAll("[data-body-view-target]"),
+      bodyViewSections: document.querySelectorAll(".body-view"),
       tabButtons: document.querySelectorAll("[data-view-target]"),
-      viewSections: document.querySelectorAll(".view")
+      viewSections: document.querySelectorAll(".lift-view")
     };
 
     function hasFirebaseConfig(config) {
@@ -577,8 +716,24 @@
     function setControlsDisabled(disabled) {
       isSaving = disabled;
       els.addExerciseButton.disabled = disabled;
+      els.bodyLogButton.disabled = disabled;
       els.deleteExerciseButton.disabled = disabled;
       els.logButton.disabled = disabled;
+    }
+
+    function showAppMode(modeId) {
+      els.appModeSections.forEach(section => {
+        section.classList.toggle("hidden", section.id !== modeId);
+      });
+
+      els.appModeButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.modeTarget === modeId);
+      });
+
+      closeMoreMenu();
+      closeBodyMoreMenu();
+      if (modeId === "bodyMode") renderBody();
+      if (modeId === "liftsMode") renderChart();
     }
 
     function showView(viewId) {
@@ -595,6 +750,19 @@
       if (viewId === "historyView") renderHistory();
     }
 
+    function showBodyView(viewId) {
+      els.bodyViewSections.forEach(section => {
+        section.classList.toggle("hidden", section.id !== viewId);
+      });
+
+      els.bodyTabButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.bodyViewTarget === viewId);
+      });
+
+      closeBodyMoreMenu();
+      if (viewId === "bodyHistoryView") renderBodyHistory();
+    }
+
     function toggleMoreMenu() {
       const isOpen = !els.moreMenu.classList.contains("hidden");
       els.moreMenu.classList.toggle("hidden", isOpen);
@@ -604,6 +772,17 @@
     function closeMoreMenu() {
       els.moreMenu.classList.add("hidden");
       els.moreMenuButton.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleBodyMoreMenu() {
+      const isOpen = !els.bodyMoreMenu.classList.contains("hidden");
+      els.bodyMoreMenu.classList.toggle("hidden", isOpen);
+      els.bodyMoreMenuButton.setAttribute("aria-expanded", String(!isOpen));
+    }
+
+    function closeBodyMoreMenu() {
+      els.bodyMoreMenu.classList.add("hidden");
+      els.bodyMoreMenuButton.setAttribute("aria-expanded", "false");
     }
 
     function showMessage(text) {
@@ -619,6 +798,13 @@
       el.textContent = text;
       setTimeout(() => {
         if (el.textContent === text) el.textContent = "";
+      }, 2500);
+    }
+
+    function showBodyMessage(text) {
+      els.bodyMessage.textContent = text;
+      setTimeout(() => {
+        if (els.bodyMessage.textContent === text) els.bodyMessage.textContent = "";
       }, 2500);
     }
 
@@ -666,11 +852,26 @@
       return UNITS_BY_TYPE[type] || UNITS_BY_TYPE.reps;
     }
 
+    function getBodyMetric(metricId) {
+      return BODY_METRICS.find(metric => metric.id === metricId) || BODY_METRICS[0];
+    }
+
+    function getBodyUnitsForKind(kind) {
+      return BODY_UNITS_BY_KIND[kind] || BODY_UNITS_BY_KIND.circumference;
+    }
+
     function updateUnitSelect(selectId, type, preferredUnit = null) {
       const select = document.getElementById(selectId);
       const units = getUnitsForType(type);
       select.innerHTML = units.map(unit => `<option value="${unit}">${unit}</option>`).join("");
       select.value = units.includes(preferredUnit) ? preferredUnit : units[0];
+    }
+
+    function updateBodyUnitSelect(preferredUnit = null) {
+      const metric = getBodyMetric(selectedBodyMetricId);
+      const units = getBodyUnitsForKind(metric.kind);
+      els.bodyUnit.innerHTML = units.map(unit => `<option value="${unit}">${unit}</option>`).join("");
+      els.bodyUnit.value = units.includes(preferredUnit) ? preferredUnit : metric.unit;
     }
 
     function toInternal(value, unit, type) {
@@ -701,6 +902,26 @@
       return value;
     }
 
+    function toBodyInternal(value, unit, kind) {
+      if (kind === "weight") {
+        if (unit === "lbs") return value * 0.45359237;
+        return value;
+      }
+
+      if (unit === "in") return value * 2.54;
+      return value;
+    }
+
+    function fromBodyInternal(value, unit, kind) {
+      if (kind === "weight") {
+        if (unit === "lbs") return value / 0.45359237;
+        return value;
+      }
+
+      if (unit === "in") return value / 2.54;
+      return value;
+    }
+
     function formatValue(value, unit, type) {
       if (value == null) return "-";
 
@@ -716,6 +937,11 @@
       }
 
       return `${displayValue.toFixed(1)} ${unit}`;
+    }
+
+    function formatBodyValue(value, unit, kind) {
+      if (value == null) return "-";
+      return `${fromBodyInternal(value, unit, kind).toFixed(1)} ${unit}`;
     }
 
     function getExerciseById(id) {
@@ -878,6 +1104,25 @@
       };
     }
 
+    function normalizeMeasurement(raw, fallbackIndex = 0) {
+      const metric = getBodyMetric(raw.metricId);
+      const enteredUnit = raw.enteredUnit || metric.unit;
+      const enteredValue = raw.enteredValue ?? fromBodyInternal(raw.value, enteredUnit, metric.kind);
+
+      return {
+        id: raw.id || crypto.randomUUID(),
+        date: raw.date || new Date().toISOString(),
+        enteredUnit,
+        enteredValue: Number(enteredValue),
+        kind: metric.kind,
+        metricId: metric.id,
+        metricName: metric.name,
+        schemaVersion: raw.schemaVersion || DATA_SCHEMA_VERSION,
+        sortOrder: raw.sortOrder || fallbackIndex,
+        value: Number(raw.value)
+      };
+    }
+
     function normalizeData(rawData) {
       const exercises = (rawData.exercises || []).map(normalizeExercise);
       const logs = (rawData.logs || [])
@@ -885,7 +1130,12 @@
         .filter(Boolean)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      return { exercises, logs };
+      const measurements = (rawData.measurements || [])
+        .map((measurement, index) => normalizeMeasurement(measurement, index))
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      return { exercises, logs, measurements };
     }
 
     function renderSelectOptions(selectId, keepCurrent = true) {
@@ -1064,6 +1314,54 @@
       `).join("");
     }
 
+    function renderBodyDiagram() {
+      els.bodyDiagram.innerHTML = BODY_METRICS.map(metric => `
+        <button class="${metric.wide ? "wide" : ""} ${metric.id === selectedBodyMetricId ? "active" : ""}" data-body-metric="${metric.id}" type="button">
+          ${escapeHtml(metric.name)}
+        </button>
+      `).join("");
+    }
+
+    function renderBodyHistoryOptions() {
+      const currentValue = els.bodyHistoryMetric.value;
+      els.bodyHistoryMetric.innerHTML = BODY_METRICS
+        .map(metric => `<option value="${metric.id}">${metric.name}</option>`)
+        .join("");
+
+      els.bodyHistoryMetric.value = BODY_METRICS.some(metric => metric.id === currentValue)
+        ? currentValue
+        : selectedBodyMetricId;
+    }
+
+    function renderBodyHistory() {
+      const metric = getBodyMetric(els.bodyHistoryMetric.value || selectedBodyMetricId);
+      const logs = data.measurements
+        .filter(item => item.metricId === metric.id)
+        .slice()
+        .reverse();
+
+      if (logs.length === 0) {
+        els.bodyHistoryList.innerHTML = `<div class="muted">No ${escapeHtml(metric.name.toLowerCase())} measurements yet.</div>`;
+        return;
+      }
+
+      els.bodyHistoryList.innerHTML = logs.map(item => `
+        <div class="history-item">
+          ${formatBodyValue(item.value, item.enteredUnit || metric.unit, metric.kind)}
+          <div class="muted">${new Date(item.date).toLocaleDateString()}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderBody() {
+      const metric = getBodyMetric(selectedBodyMetricId);
+      els.bodyMetricLabel.textContent = metric.name;
+      renderBodyDiagram();
+      updateBodyUnitSelect(els.bodyUnit.value);
+      renderBodyHistoryOptions();
+      renderBodyHistory();
+    }
+
     function loadChartJs() {
       if (window.Chart) return Promise.resolve();
 
@@ -1153,6 +1451,7 @@
       renderRecent();
       renderHistory();
       renderAdminTools();
+      renderBody();
       renderChart();
       syncNewExerciseUnitOptions();
     }
@@ -1414,6 +1713,14 @@
         });
       });
 
+      normalized.measurements.forEach(measurement => {
+        batch.set(doc(db, "users", currentUser.uid, "measurements", measurement.id), {
+          ...measurement,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+
       batch.set(userDocRef(), {
         defaultCatalogVersion: DEFAULT_CATALOG_VERSION,
         initialized: true,
@@ -1505,18 +1812,25 @@
     }
 
     async function loadCloudData() {
-      const [exercisesSnap, logsSnap] = await Promise.all([
+      const [exercisesSnap, logsSnap, measurementsSnap] = await Promise.all([
         getDocs(query(userCollection("exercises"), orderBy("name"))),
-        getDocs(query(userCollection("logs"), orderBy("date")))
+        getDocs(query(userCollection("logs"), orderBy("date"))),
+        getDocs(query(userCollection("measurements"), orderBy("date")))
       ]);
 
       data = {
         exercises: exercisesSnap.docs.map(item => normalizeExercise({ id: item.id, ...item.data() })),
-        logs: []
+        logs: [],
+        measurements: []
       };
 
       data.logs = logsSnap.docs
         .map((item, index) => normalizeLog({ id: item.id, ...item.data() }, data.exercises, index))
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      data.measurements = measurementsSnap.docs
+        .map((item, index) => normalizeMeasurement({ id: item.id, ...item.data() }, index))
         .filter(Boolean)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
     }
@@ -1606,6 +1920,64 @@
         valueInput.focus();
       } catch (error) {
         showMessage("Could not save. Check your connection.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    function selectBodyMetric(metricId) {
+      const metric = getBodyMetric(metricId);
+      selectedBodyMetricId = metric.id;
+      els.bodyHistoryMetric.value = metric.id;
+      renderBody();
+      els.bodyValue.focus();
+    }
+
+    async function logBodyMeasurement() {
+      if (isSaving || !currentUser) return;
+
+      const metric = getBodyMetric(selectedBodyMetricId);
+      const rawValue = Number(els.bodyValue.value);
+      const unit = els.bodyUnit.value;
+
+      if (!rawValue || rawValue <= 0) return;
+      if (!getBodyUnitsForKind(metric.kind).includes(unit)) {
+        updateBodyUnitSelect();
+        showBodyMessage(`Use ${getBodyUnitsForKind(metric.kind).join(" or ")} for ${metric.name}.`);
+        return;
+      }
+
+      setControlsDisabled(true);
+
+      try {
+        const measurement = {
+          date: new Date().toISOString(),
+          enteredUnit: unit,
+          enteredValue: rawValue,
+          kind: metric.kind,
+          metricId: metric.id,
+          metricName: metric.name,
+          schemaVersion: DATA_SCHEMA_VERSION,
+          value: toBodyInternal(rawValue, unit, metric.kind),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+
+        const docRef = await addDoc(userCollection("measurements"), measurement);
+        data.measurements.push({
+          ...measurement,
+          id: docRef.id,
+          createdAt: undefined,
+          updatedAt: undefined
+        });
+        data.measurements.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        els.bodyValue.value = "";
+        renderBody();
+        showBodyMessage("Measurement logged.");
+      } catch (error) {
+        showBodyMessage("Could not save measurement.");
         console.error(error);
       } finally {
         setControlsDisabled(false);
@@ -1901,6 +2273,11 @@
         event.stopPropagation();
         toggleMoreMenu();
       });
+      els.bodyMoreMenuButton.addEventListener("click", event => {
+        event.stopPropagation();
+        toggleBodyMoreMenu();
+      });
+      els.bodyLogButton.addEventListener("click", logBodyMeasurement);
 
       document.getElementById("exercise").addEventListener("change", () => {
         syncInputUnitToExercise();
@@ -1973,11 +2350,28 @@
         if (!event.target.closest(".exercise-picker")) hideExerciseMatches();
         if (!event.target.closest(".exercise-picker")) hideChartExerciseMatches();
         if (!event.target.closest(".more-menu-wrap")) closeMoreMenu();
+        if (!event.target.closest(".more-menu-wrap")) closeBodyMoreMenu();
       });
 
       els.newExerciseType.addEventListener("change", syncNewExerciseUnitOptions);
+      els.appModeButtons.forEach(button => {
+        button.addEventListener("click", () => showAppMode(button.dataset.modeTarget));
+      });
       els.tabButtons.forEach(button => {
         button.addEventListener("click", () => showView(button.dataset.viewTarget));
+      });
+      els.bodyTabButtons.forEach(button => {
+        button.addEventListener("click", () => showBodyView(button.dataset.bodyViewTarget));
+      });
+
+      els.bodyDiagram.addEventListener("click", event => {
+        const metricId = event.target.closest("[data-body-metric]")?.dataset.bodyMetric;
+        if (metricId) selectBodyMetric(metricId);
+      });
+
+      els.bodyHistoryMetric.addEventListener("change", renderBodyHistory);
+      els.bodyValue.addEventListener("keydown", event => {
+        if (event.key === "Enter") logBodyMeasurement();
       });
 
       els.suggestions.addEventListener("click", event => {
@@ -2018,7 +2412,7 @@
         currentUser = user;
 
         if (!user) {
-          data = { exercises: [], logs: [] };
+          data = { exercises: [], logs: [], measurements: [] };
           globalExercises = [];
           isAdmin = false;
           suggestions = [];

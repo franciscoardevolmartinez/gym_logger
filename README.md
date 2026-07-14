@@ -18,6 +18,7 @@ Data is stored as:
 - `users/{uid}`: profile and schema metadata
 - `users/{uid}/exercises/{exerciseId}`: exercise definitions, default slugs, and tags
 - `users/{uid}/logs/{logId}`: workout logs
+- `users/{uid}/measurements/{measurementId}`: body weight and circumference logs
 - `globalExercises/{slug}`: approved shared exercises that sync to every user
 - `exerciseSuggestions/{suggestionId}`: user-submitted exercises waiting for review
 - `admins/{uid}`: admin marker documents for review/export access
