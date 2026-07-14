@@ -340,7 +340,11 @@
       <div class="card">
         <h2>Progress</h2>
         <div class="row">
-          <select id="chartExercise"></select>
+          <div class="exercise-picker">
+            <input id="chartExerciseSearch" autocomplete="off" placeholder="Search logged exercise" />
+            <select id="chartExercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
+            <div id="chartExerciseMatches" class="exercise-results hidden"></div>
+          </div>
         </div>
         <canvas id="progressChart"></canvas>
       </div>
@@ -465,6 +469,8 @@
       app: document.getElementById("app"),
       authCard: document.getElementById("authCard"),
       authMessage: document.getElementById("authMessage"),
+      chartExerciseMatches: document.getElementById("chartExerciseMatches"),
+      chartExerciseSearch: document.getElementById("chartExerciseSearch"),
       deleteExerciseButton: document.getElementById("deleteExerciseButton"),
       exerciseMatches: document.getElementById("exerciseMatches"),
       exerciseSearch: document.getElementById("exerciseSearch"),
@@ -672,6 +678,34 @@
         .slice(0, 8);
     }
 
+    function getLoggedExerciseIds() {
+      return new Set(data.logs.map(log => log.exerciseId));
+    }
+
+    function getExercisesWithLogs() {
+      const loggedIds = getLoggedExerciseIds();
+      return data.exercises
+        .filter(exercise => loggedIds.has(exercise.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function findExactLoggedExercise(query) {
+      const normalized = String(query || "").trim().toLowerCase();
+      if (!normalized) return null;
+      return getExercisesWithLogs().find(exercise => exercise.name.toLowerCase() === normalized) || null;
+    }
+
+    function getLoggedExerciseMatches(query) {
+      const normalized = String(query || "").trim().toLowerCase();
+      const source = getExercisesWithLogs();
+
+      if (!normalized) return source.slice(0, 8);
+
+      return source
+        .filter(exercise => getExerciseSearchText(exercise).includes(normalized))
+        .slice(0, 8);
+    }
+
     function getPRInternal(exerciseId) {
       const matching = data.logs
         .filter(l => l.exerciseId === exerciseId)
@@ -806,7 +840,26 @@
     }
 
     function renderChartExerciseOptions() {
-      renderSelectOptions("chartExercise");
+      const select = document.getElementById("chartExercise");
+      const currentValue = select.value;
+      const loggedExercises = getExercisesWithLogs();
+
+      if (loggedExercises.length === 0) {
+        select.innerHTML = `<option value="">No logged exercises yet</option>`;
+        select.value = "";
+        syncChartExerciseSearchToSelection();
+        hideChartExerciseMatches();
+        return;
+      }
+
+      select.innerHTML = loggedExercises
+        .map(e => `<option value="${e.id}">${e.name}</option>`)
+        .join("");
+
+      const exists = loggedExercises.some(e => e.id === currentValue);
+      select.value = exists ? currentValue : loggedExercises[0].id;
+      syncChartExerciseSearchToSelection();
+      hideChartExerciseMatches();
     }
 
     function renderDeleteExerciseOptions() {
@@ -957,7 +1010,11 @@
         chartInstance = null;
       }
 
-      if (!exerciseId) return;
+      if (!exerciseId) {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+      }
 
       const ex = getExerciseById(exerciseId);
       const logs = data.logs.filter(l => l.exerciseId === exerciseId);
@@ -1032,8 +1089,18 @@
       els.exerciseSearch.value = ex ? ex.name : "";
     }
 
+    function syncChartExerciseSearchToSelection() {
+      const exerciseId = document.getElementById("chartExercise").value;
+      const ex = getExerciseById(exerciseId);
+      els.chartExerciseSearch.value = ex ? ex.name : "";
+    }
+
     function hideExerciseMatches() {
       els.exerciseMatches.classList.add("hidden");
+    }
+
+    function hideChartExerciseMatches() {
+      els.chartExerciseMatches.classList.add("hidden");
     }
 
     function renderExerciseMatches() {
@@ -1071,6 +1138,35 @@
       els.exerciseSearch.value = ex.name;
       hideExerciseMatches();
       syncInputUnitToExercise();
+    }
+
+    function renderChartExerciseMatches() {
+      const queryText = els.chartExerciseSearch.value;
+      const matches = getLoggedExerciseMatches(queryText);
+
+      if (matches.length === 0) {
+        els.chartExerciseMatches.innerHTML = `<div class="exercise-match muted">No logged exercises match.</div>`;
+        els.chartExerciseMatches.classList.remove("hidden");
+        return;
+      }
+
+      els.chartExerciseMatches.innerHTML = matches.map(exercise => `
+        <button class="exercise-match" data-chart-exercise-match="${escapeHtml(exercise.id)}" type="button">
+          ${escapeHtml(exercise.name)}
+          ${exercise.tags?.length ? `<div class="muted">${escapeHtml(exercise.tags.join(", "))}</div>` : ""}
+        </button>
+      `).join("");
+
+      els.chartExerciseMatches.classList.remove("hidden");
+    }
+
+    function selectChartExercise(exerciseId) {
+      const ex = getExerciseById(exerciseId);
+      if (!ex) return;
+      document.getElementById("chartExercise").value = ex.id;
+      els.chartExerciseSearch.value = ex.name;
+      hideChartExerciseMatches();
+      renderChart();
     }
 
     function prefillCreateExercise(name) {
@@ -1733,7 +1829,10 @@
         renderExerciseMatches();
       });
 
-      els.exerciseSearch.addEventListener("focus", renderExerciseMatches);
+      els.exerciseSearch.addEventListener("focus", () => {
+        hideChartExerciseMatches();
+        renderExerciseMatches();
+      });
 
       els.exerciseSearch.addEventListener("keydown", event => {
         if (event.key !== "Enter") return;
@@ -1757,8 +1856,37 @@
         if (createName) prefillCreateExercise(createName);
       });
 
+      els.chartExerciseSearch.addEventListener("input", () => {
+        const exact = findExactLoggedExercise(els.chartExerciseSearch.value);
+        document.getElementById("chartExercise").value = exact ? exact.id : "";
+        renderChartExerciseMatches();
+        if (exact) renderChart();
+      });
+
+      els.chartExerciseSearch.addEventListener("focus", () => {
+        hideExerciseMatches();
+        renderChartExerciseMatches();
+      });
+
+      els.chartExerciseSearch.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+
+        event.preventDefault();
+        const exact = findExactLoggedExercise(els.chartExerciseSearch.value);
+        const firstMatch = getLoggedExerciseMatches(els.chartExerciseSearch.value)[0];
+        const selected = exact || firstMatch;
+
+        if (selected) selectChartExercise(selected.id);
+      });
+
+      els.chartExerciseMatches.addEventListener("click", event => {
+        const exerciseId = event.target.closest("[data-chart-exercise-match]")?.dataset.chartExerciseMatch;
+        if (exerciseId) selectChartExercise(exerciseId);
+      });
+
       document.addEventListener("click", event => {
         if (!event.target.closest(".exercise-picker")) hideExerciseMatches();
+        if (!event.target.closest(".exercise-picker")) hideChartExerciseMatches();
       });
 
       els.newExerciseType.addEventListener("change", syncNewExerciseUnitOptions);
@@ -1774,7 +1902,10 @@
       });
 
       document.getElementById("historyExercise").addEventListener("change", renderHistory);
-      document.getElementById("chartExercise").addEventListener("change", renderChart);
+      document.getElementById("chartExercise").addEventListener("change", () => {
+        syncChartExerciseSearchToSelection();
+        renderChart();
+      });
 
       document.getElementById("value").addEventListener("keydown", function(e) {
         if (e.key === "Enter") {
