@@ -1528,12 +1528,39 @@
         return;
       }
 
-      els.bodyHistoryList.innerHTML = logs.map(item => `
-        <div class="history-item">
-          ${formatBodyValue(item.value, item.enteredUnit || metric.unit, metric.kind)}
-          <div class="muted">${new Date(item.date).toLocaleDateString()}</div>
+      els.bodyHistoryList.innerHTML = logs.map(item => {
+        const enteredUnit = getBodyUnitsForKind(metric.kind).includes(item.enteredUnit) ? item.enteredUnit : metric.unit;
+        const enteredValue = item.enteredValue ?? fromBodyInternal(item.value, enteredUnit, metric.kind);
+        const unitOptions = getBodyUnitsForKind(metric.kind)
+          .map(unit => `<option value="${unit}" ${unit === enteredUnit ? "selected" : ""}>${unit}</option>`)
+          .join("");
+
+        return `
+        <div class="history-item" data-body-measurement-entry="${escapeHtml(item.id)}">
+          <div class="history-entry-main">
+            <div>
+              <strong>${formatBodyValue(item.value, enteredUnit, metric.kind)}</strong>
+              <div class="muted">${new Date(item.date).toLocaleDateString()}</div>
+            </div>
+            <div class="history-actions">
+              <button class="secondary" data-edit-measurement="${escapeHtml(item.id)}" type="button">Edit</button>
+              <button class="danger" data-delete-measurement="${escapeHtml(item.id)}" type="button">Delete</button>
+            </div>
+          </div>
+          <div class="history-edit-form hidden" data-measurement-edit-form="${escapeHtml(item.id)}">
+            <div class="row">
+              <input data-measurement-edit-value="${escapeHtml(item.id)}" type="number" step="any" value="${escapeHtml(enteredValue)}" />
+              <select data-measurement-edit-unit="${escapeHtml(item.id)}">${unitOptions}</select>
+              <input data-measurement-edit-date="${escapeHtml(item.id)}" type="date" value="${dateInputValue(item.date)}" />
+            </div>
+            <div class="row">
+              <button data-save-measurement="${escapeHtml(item.id)}" type="button">Save</button>
+              <button class="secondary" data-cancel-measurement-edit="${escapeHtml(item.id)}" type="button">Cancel</button>
+            </div>
+          </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
     }
 
     async function renderBodyChart() {
@@ -2210,7 +2237,7 @@
       form.classList.toggle("hidden", !show);
     }
 
-    function getEditedLogDate(dateValue, fallbackDate) {
+    function getEditedEntryDate(dateValue, fallbackDate) {
       if (!dateValue) return fallbackDate;
       const fallback = new Date(fallbackDate);
       const time = Number.isNaN(fallback.getTime())
@@ -2238,7 +2265,7 @@
       if (!getUnitsForType(ex.type).includes(unit)) return;
 
       const updatedLog = {
-        date: getEditedLogDate(dateInput?.value, log.date),
+        date: getEditedEntryDate(dateInput?.value, log.date),
         enteredUnit: unit,
         enteredValue: rawValue,
         exercise: ex.name,
@@ -2349,6 +2376,91 @@
         showBodyMessage("Measurement logged.");
       } catch (error) {
         showBodyMessage("Could not save measurement.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    function toggleMeasurementEdit(measurementId, show) {
+      const form = document.querySelector(`[data-measurement-edit-form="${CSS.escape(measurementId)}"]`);
+      if (!form) return;
+      form.classList.toggle("hidden", !show);
+    }
+
+    async function updateBodyMeasurement(measurementId) {
+      if (isSaving || !currentUser) return;
+
+      const measurement = data.measurements.find(item => item.id === measurementId);
+      if (!measurement) return;
+
+      const metric = getBodyMetric(measurement.metricId);
+      const valueInput = document.querySelector(`[data-measurement-edit-value="${CSS.escape(measurementId)}"]`);
+      const unitInput = document.querySelector(`[data-measurement-edit-unit="${CSS.escape(measurementId)}"]`);
+      const dateInput = document.querySelector(`[data-measurement-edit-date="${CSS.escape(measurementId)}"]`);
+      const rawValue = Number(valueInput?.value);
+      const unit = unitInput?.value;
+
+      if (!rawValue || rawValue <= 0 || !unit) return;
+      if (!getBodyUnitsForKind(metric.kind).includes(unit)) return;
+
+      const updatedMeasurement = {
+        date: getEditedEntryDate(dateInput?.value, measurement.date),
+        enteredUnit: unit,
+        enteredValue: rawValue,
+        kind: metric.kind,
+        metricId: metric.id,
+        metricName: metric.name,
+        schemaVersion: DATA_SCHEMA_VERSION,
+        value: toBodyInternal(rawValue, unit, metric.kind),
+        updatedAt: serverTimestamp()
+      };
+
+      setControlsDisabled(true);
+
+      try {
+        await setDoc(
+          doc(db, "users", currentUser.uid, "measurements", measurement.id),
+          updatedMeasurement,
+          { merge: true }
+        );
+        Object.assign(measurement, {
+          ...updatedMeasurement,
+          updatedAt: undefined
+        });
+        data.measurements.sort((a, b) => new Date(a.date) - new Date(b.date));
+        renderBody();
+        showBodyMessage("Measurement updated.");
+      } catch (error) {
+        showBodyMessage("Could not update measurement.");
+        console.error(error);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    async function deleteBodyMeasurement(measurementId) {
+      if (isSaving || !currentUser) return;
+
+      const measurement = data.measurements.find(item => item.id === measurementId);
+      if (!measurement) return;
+
+      const metric = getBodyMetric(measurement.metricId);
+      const confirmed = window.confirm(`Delete this ${metric.name.toLowerCase()} measurement?`);
+      if (!confirmed) return;
+
+      setControlsDisabled(true);
+
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "users", currentUser.uid, "measurements", measurement.id));
+        await batch.commit();
+
+        data.measurements = data.measurements.filter(item => item.id !== measurement.id);
+        renderBody();
+        showBodyMessage("Measurement deleted.");
+      } catch (error) {
+        showBodyMessage("Could not delete measurement.");
         console.error(error);
       } finally {
         setControlsDisabled(false);
@@ -2781,6 +2893,17 @@
       });
 
       els.bodyHistoryMetric.addEventListener("change", renderBodyHistory);
+      els.bodyHistoryList.addEventListener("click", event => {
+        const editId = event.target.closest("[data-edit-measurement]")?.dataset.editMeasurement;
+        const cancelId = event.target.closest("[data-cancel-measurement-edit]")?.dataset.cancelMeasurementEdit;
+        const saveId = event.target.closest("[data-save-measurement]")?.dataset.saveMeasurement;
+        const deleteId = event.target.closest("[data-delete-measurement]")?.dataset.deleteMeasurement;
+
+        if (editId) toggleMeasurementEdit(editId, true);
+        if (cancelId) toggleMeasurementEdit(cancelId, false);
+        if (saveId) updateBodyMeasurement(saveId);
+        if (deleteId) deleteBodyMeasurement(deleteId);
+      });
       els.bodyValue.addEventListener("keydown", event => {
         if (event.key === "Enter") logBodyMeasurement();
       });
