@@ -155,6 +155,49 @@
       display: none;
     }
 
+    .exercise-picker {
+      position: relative;
+    }
+
+    .exercise-results {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 12px 30px rgba(32, 25, 18, 0.12);
+      left: 0;
+      max-height: 280px;
+      overflow-y: auto;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 5;
+    }
+
+    .exercise-results.hidden {
+      display: none;
+    }
+
+    .exercise-match {
+      background: white;
+      border: 0;
+      border-bottom: 1px solid #f0ece4;
+      border-radius: 0;
+      color: var(--ink);
+      display: block;
+      font-weight: 500;
+      padding: 10px 12px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .exercise-match:last-child {
+      border-bottom: 0;
+    }
+
+    .exercise-match:hover {
+      background: #f7f2ea;
+    }
+
     .pr-item, .log-item, .history-item, .suggestion-item {
       padding: 10px 0;
       border-bottom: 1px solid #eee;
@@ -278,7 +321,11 @@
         <h2>Log</h2>
 
         <div class="row">
-          <select id="exercise"></select>
+          <div class="exercise-picker">
+            <input id="exerciseSearch" autocomplete="off" placeholder="Search exercise or tag" />
+            <select id="exercise" class="hidden" aria-hidden="true" tabindex="-1"></select>
+            <div id="exerciseMatches" class="exercise-results hidden"></div>
+          </div>
         </div>
 
         <div class="row">
@@ -418,6 +465,8 @@
       authCard: document.getElementById("authCard"),
       authMessage: document.getElementById("authMessage"),
       deleteExerciseButton: document.getElementById("deleteExerciseButton"),
+      exerciseMatches: document.getElementById("exerciseMatches"),
+      exerciseSearch: document.getElementById("exerciseSearch"),
       exportExercisesButton: document.getElementById("exportExercisesButton"),
       loadingCard: document.getElementById("loadingCard"),
       logButton: document.getElementById("logButton"),
@@ -597,6 +646,31 @@
       return exercise ? exercise.name : "Unknown exercise";
     }
 
+    function getExerciseSearchText(exercise) {
+      return [
+        exercise.name,
+        ...(exercise.aliases || []),
+        ...(exercise.tags || [])
+      ].join(" ").toLowerCase();
+    }
+
+    function findExactExercise(query) {
+      const normalized = String(query || "").trim().toLowerCase();
+      if (!normalized) return null;
+      return data.exercises.find(exercise => exercise.name.toLowerCase() === normalized) || null;
+    }
+
+    function getExerciseMatches(query) {
+      const normalized = String(query || "").trim().toLowerCase();
+      const source = data.exercises.slice().sort((a, b) => a.name.localeCompare(b.name));
+
+      if (!normalized) return source.slice(0, 8);
+
+      return source
+        .filter(exercise => getExerciseSearchText(exercise).includes(normalized))
+        .slice(0, 8);
+    }
+
     function getPRInternal(exerciseId) {
       const matching = data.logs
         .filter(l => l.exerciseId === exerciseId)
@@ -653,6 +727,7 @@
       const slug = raw.slug || matchingDefault?.slug || null;
 
       return {
+        aliases: Array.isArray(raw.aliases) ? raw.aliases : matchingDefault?.aliases || [],
         id: raw.id || (slug ? getDefaultExerciseId({ slug }) : crypto.randomUUID()),
         isDefault: raw.isDefault ?? Boolean(matchingDefault),
         name,
@@ -720,6 +795,8 @@
 
     function renderExerciseOptions() {
       renderSelectOptions("exercise");
+      syncExerciseSearchToSelection();
+      hideExerciseMatches();
       syncInputUnitToExercise();
     }
 
@@ -946,6 +1023,62 @@
       const ex = getExerciseById(exerciseId);
       if (!ex) return;
       updateUnitSelect("inputUnit", ex.type, ex.unit);
+    }
+
+    function syncExerciseSearchToSelection() {
+      const exerciseId = document.getElementById("exercise").value;
+      const ex = getExerciseById(exerciseId);
+      els.exerciseSearch.value = ex ? ex.name : "";
+    }
+
+    function hideExerciseMatches() {
+      els.exerciseMatches.classList.add("hidden");
+    }
+
+    function renderExerciseMatches() {
+      const queryText = els.exerciseSearch.value;
+      const matches = getExerciseMatches(queryText);
+      const exact = findExactExercise(queryText);
+      const createName = queryText.trim();
+
+      if (matches.length === 0 && !createName) {
+        hideExerciseMatches();
+        return;
+      }
+
+      const createRow = createName && !exact
+        ? `<button class="exercise-match" data-create-exercise="${escapeHtml(createName)}" type="button">Create "${escapeHtml(createName)}"</button>`
+        : "";
+
+      els.exerciseMatches.innerHTML = [
+        ...matches.map(exercise => `
+          <button class="exercise-match" data-exercise-match="${escapeHtml(exercise.id)}" type="button">
+            ${escapeHtml(exercise.name)}
+            ${exercise.tags?.length ? `<div class="muted">${escapeHtml(exercise.tags.join(", "))}</div>` : ""}
+          </button>
+        `),
+        createRow
+      ].join("");
+
+      els.exerciseMatches.classList.remove("hidden");
+    }
+
+    function selectExercise(exerciseId) {
+      const ex = getExerciseById(exerciseId);
+      if (!ex) return;
+      document.getElementById("exercise").value = ex.id;
+      els.exerciseSearch.value = ex.name;
+      hideExerciseMatches();
+      syncInputUnitToExercise();
+    }
+
+    function prefillCreateExercise(name) {
+      const cleanName = String(name || "").trim();
+      if (!cleanName) return;
+      showView("exercisesView");
+      document.getElementById("newEx").value = cleanName;
+      document.getElementById("newEx").focus();
+      showManageMessage("Create this exercise, then log it.");
     }
 
     function syncNewExerciseUnitOptions() {
@@ -1225,7 +1358,10 @@
       const inputUnit = document.getElementById("inputUnit").value;
       const rawValue = Number(valueInput.value);
 
-      if (!exerciseId) return;
+      if (!exerciseId) {
+        prefillCreateExercise(els.exerciseSearch.value);
+        return;
+      }
       if (!rawValue || rawValue <= 0) return;
 
       const ex = getExerciseById(exerciseId);
@@ -1356,6 +1492,7 @@
         document.getElementById("historyExercise").value = exercise.id;
         document.getElementById("chartExercise").value = exercise.id;
         document.getElementById("deleteExercise").value = exercise.id;
+        els.exerciseSearch.value = exercise.name;
         syncInputUnitToExercise();
 
         nameInput.value = "";
@@ -1533,6 +1670,42 @@
 
       document.getElementById("exercise").addEventListener("change", () => {
         syncInputUnitToExercise();
+        syncExerciseSearchToSelection();
+      });
+
+      els.exerciseSearch.addEventListener("input", () => {
+        const exact = findExactExercise(els.exerciseSearch.value);
+        document.getElementById("exercise").value = exact ? exact.id : "";
+        if (exact) syncInputUnitToExercise();
+        renderExerciseMatches();
+      });
+
+      els.exerciseSearch.addEventListener("focus", renderExerciseMatches);
+
+      els.exerciseSearch.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+
+        const exact = findExactExercise(els.exerciseSearch.value);
+        event.preventDefault();
+
+        if (exact) {
+          selectExercise(exact.id);
+          document.getElementById("value").focus();
+        } else {
+          prefillCreateExercise(els.exerciseSearch.value);
+        }
+      });
+
+      els.exerciseMatches.addEventListener("click", event => {
+        const exerciseId = event.target.closest("[data-exercise-match]")?.dataset.exerciseMatch;
+        const createName = event.target.closest("[data-create-exercise]")?.dataset.createExercise;
+
+        if (exerciseId) selectExercise(exerciseId);
+        if (createName) prefillCreateExercise(createName);
+      });
+
+      document.addEventListener("click", event => {
+        if (!event.target.closest(".exercise-picker")) hideExerciseMatches();
       });
 
       els.newExerciseType.addEventListener("change", syncNewExerciseUnitOptions);
