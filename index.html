@@ -1473,33 +1473,34 @@
           schemaVersion: DATA_SCHEMA_VERSION
         };
 
-        const suggestionSlug = slugify(name);
-        const batch = writeBatch(db);
         const userExerciseRef = doc(db, "users", currentUser.uid, "exercises", exercise.id);
-        const suggestionRef = doc(publicCollection("exerciseSuggestions"));
 
-        batch.set(userExerciseRef, {
+        await setDoc(userExerciseRef, {
           ...exercise,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
 
-        batch.set(suggestionRef, {
-          aliases: [],
-          name,
-          schemaVersion: DATA_SCHEMA_VERSION,
-          slug: suggestionSlug,
-          status: "pending",
-          suggestedBy: currentUser.uid,
-          suggestedByEmail: currentUser.email || "",
-          tags,
-          type,
-          unit,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-
-        await batch.commit();
+        let suggestionSaved = false;
+        try {
+          await addDoc(publicCollection("exerciseSuggestions"), {
+            aliases: [],
+            name,
+            schemaVersion: DATA_SCHEMA_VERSION,
+            slug: slugify(name),
+            status: "pending",
+            suggestedBy: currentUser.uid,
+            suggestedByEmail: currentUser.email || "",
+            tags,
+            type,
+            unit,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          suggestionSaved = true;
+        } catch (suggestionError) {
+          console.warn("Exercise suggestion skipped.", suggestionError);
+        }
 
         data.exercises.push(exercise);
         data.exercises.sort((a, b) => a.name.localeCompare(b.name));
@@ -1514,7 +1515,7 @@
 
         nameInput.value = "";
         els.newExerciseTags.value = "";
-        showManageMessage("Exercise added and suggested for everyone.");
+        showManageMessage(suggestionSaved ? "Exercise added and suggested for everyone." : "Exercise added.");
       } catch (error) {
         showManageMessage("Could not save exercise.");
         console.error(error);
